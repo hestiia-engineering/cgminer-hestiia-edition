@@ -158,6 +158,7 @@ AC_ARG_ENABLE([bm1397],
 	)
 if test "x$bm1397" = xyes; then
 	AC_DEFINE([USE_BM1397], [1], [Defined to 1 if bm1397 support is wanted])
+	AC_DEFINE([USE_UART], [1], [Defined to 1 if uart support is wanted])
 	AC_DEFINE([USE_VMASK], [1], [Defined to 1 if version mask rolling is wanted])
 	drivercount=x$drivercount
 fi
@@ -203,6 +204,7 @@ fi
 
 if test x$bm1397 != xno; then
 	want_gpiod=true
+	want_uart=true
 else
 	want_gpiod=false
 fi
@@ -212,6 +214,7 @@ AM_CONDITIONAL([HAVE_CURSES], [test x$curses = xyes])
 AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
 AM_CONDITIONAL([WANT_CRC16], [test x$want_crc16 != xfalse])
+AM_CONDITIONAL([WANT_UARTUTILS], [test x$want_uart != xfalse])
 AM_CONDITIONAL([WANT_GPIOD], [test x$want_gpiod != xfalse])
 
 if test "x$want_usbutils" != xfalse; then
