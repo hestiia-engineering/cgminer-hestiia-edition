@@ -6,34 +6,22 @@
 #include <errno.h>
 
 
-#define UART_BUFFER_SIZE 128
+#define UART_BUFFER_SIZE 256
+struct S_UART_DEVICE {
+	char *name;
+	int *fd;
+	uint32_t speed;
+	struct termios settings;
+};
 
-typedef struct {
-	char        *device;
-	int         fd;
+int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_t speed)
+int8_t uart_transfer(S_UART_DEVICE *attr);
+void uart_release(S_UART_DEVICE *attr);
 
-	uint8_t     mode;
-	uint8_t     bits;
-	uint32_t    speed;
-	uint16_t    delay;
 
-	uint16_t    datalen;
-	uint16_t    size;
-	uint8_t     *rx;
-	uint8_t     *tx;
-} device_t;
+struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads);
+void __uart_detect(struct cgpu_info *(*device_detect)(), bool single)
 
-typedef enum {
-	UART_CHANNEL1 = 1,
-	UART_CHANNEL2
-} uart_channel_id_t;
-
-extern char *uart1_device_name;
-extern char *uart2_device_name;
-
-int8_t uart_init(device_t* attr,
-		int8_t mode, uint32_t speed, uint16_t size);
-int8_t uart_transfer(device_t *attr);
-void uart_release(device_t *attr);
-
+#define uart_detect(cgpu) __uart_detect(cgpu, false)
+#define uart_detect_one(cgpu) __uart_detect(cgpu, true)
 #endif

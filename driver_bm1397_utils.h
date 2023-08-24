@@ -2,6 +2,8 @@
 #include "miner.h"
 #include "uart_utils.h"
 #include "klist.h"
+#include <gpiod.h>
+
 
 
 //** BM1397 HEADER **//

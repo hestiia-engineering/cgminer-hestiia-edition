@@ -1266,7 +1266,7 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 {
 	
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	unsigned short usb_val;
+
 
 	applog(s_bm1397_info->log_wide,"%d: %s %d - Toggling ASIC nRST to reset",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -1712,8 +1712,8 @@ static void *bm1397_mining_thread(void *object)
 	cgtime(&last_plateau_check);
 
 	while (s_bm1397_info->mining_state != MINER_SHUTDOWN)
-	{
 		if (old_work)
+	{
 		{
 			mutex_lock(&s_bm1397_info->lock);
 			work_completed(cgpu_bm1397, old_work);
@@ -2919,34 +2919,30 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	//return hashes;
 }
 
-static struct cgpu_info *bm1397_detect_one(struct libusb_device *dev, struct usb_find_devices *found)
+static struct cgpu_info *bm1397_detect_one(char *uart_device_names)
 {
 	struct cgpu_info *cgpu_bm1397;
 	struct S_BM1397_INFO *s_bm1397_info;
+	struct S_UART_DEVICE *uart_interface;
 	int i;
 	bool exclude_me = 0;
-	uint32_t baudrate = CP210X_DATA_BAUD;
-	unsigned int bits = CP210X_BITS_DATA_8 | CP210X_BITS_PARITY_MARK;
 
-	cgpu_bm1397 = usb_alloc_cgpu(&bm1397_drv, 1);
-
-	if (!usb_init(cgpu_bm1397, dev, found))
-	{
-		applog(LOG_INFO, "failed usb_init");
-		cgpu_bm1397 = usb_free_cgpu(cgpu_bm1397);
-		return NULL;
-	}
+	cgpu_bm1397 = uart_alloc_cgpu(&bm1397_drv, 1);
 
 	// all zero
 	s_bm1397_info = cgcalloc(1, sizeof(struct S_BM1397_INFO));
+	uart_interface = cgalloc(1, sizeof(struct S_UART_DEVICE));
 
 #if TUNE_CODE
 	pthread_mutex_init(&s_bm1397_info->mutex_usleep_stats_lock, NULL);
 #endif
 
 	cgpu_bm1397->device_data = (void *)s_bm1397_info;
+	
+	uart_init(uart_interface, uart_device_names, B115200);
 
-	s_bm1397_info->ident = usb_ident(cgpu_bm1397);
+	// TODO deals with this more cleanly
+	s_bm1397_info->ident = IDENT_GSF;
 
 	if (opt_gekko_gsc_detect || opt_gekko_gsd_detect || opt_gekko_gse_detect
 	||  opt_gekko_gsh_detect || opt_gekko_gsi_detect || opt_gekko_gsf_detect
@@ -2957,7 +2953,7 @@ static struct cgpu_info *bm1397_detect_one(struct libusb_device *dev, struct usb
 	}
 
 	if (opt_gekko_serial != NULL && 
-		(strstr(opt_gekko_serial, cgpu_bm1397->usbdev->serial_string) == NULL))
+		(strstr(opt_gekko_serial, cgpu_bm1397->uart_device->device) == NULL))
 	{
 		exclude_me = true;
 	}
@@ -2979,7 +2975,7 @@ static struct cgpu_info *bm1397_detect_one(struct libusb_device *dev, struct usb
 			s_bm1397_info->expected_chips = 1;
 			break;
 		default:
-			quit(1, "%d: %s compac_detect_one() invalid %s ident=%d",
+			quit(1, "%d: %s bm1397_detect_one() invalid %s ident=%d",
 				cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->dname, cgpu_bm1397->drv->dname, s_bm1397_info->ident);
 	}
 
@@ -3001,16 +2997,20 @@ static struct cgpu_info *bm1397_detect_one(struct libusb_device *dev, struct usb
 			break;
 	}
 
-	s_bm1397_info->interface = usb_interface(cgpu_bm1397);
+	//s_bm1397_info->interface = usb_interface(cgpu_bm1397);
 	s_bm1397_info->mining_state = MINER_INIT;
 
-	applog(LOG_DEBUG, "Using interface %d", s_bm1397_info->interface);
+	//applog(LOG_DEBUG, "Using interface %d", s_bm1397_info->interface);
 
+
+
+	//// HERE IS THE BLACK MAGIC !!! /// 
+	//Add the cgpu struct to cgminer global driver list
 	if (!add_cgpu(cgpu_bm1397)) {
-		quit(1, "Failed to add_cgpu in compac_detect_one");
+		quit(1, "Failed to add_cgpu in bm1397_detect_one");
 	}
 
-	update_usb_stats(cgpu_bm1397);
+	//update_usb_stats(cgpu_bm1397);
 
 	for (i = 0; i < 8; i++) {
 		cgpu_bm1397->unique_id[i] = cgpu_bm1397->unique_id[i+3];
@@ -3028,7 +3028,7 @@ static struct cgpu_info *bm1397_detect_one(struct libusb_device *dev, struct usb
 
 static void bm1397_detect(bool __maybe_unused hotplug)
 {
-	usb_detect(&bm1397_drv, bm1397_detect_one);
+	uart_detect(bm1397_detect_one);
 }
 
 static bool compac_prepare(struct thr_info *thr)
@@ -3069,6 +3069,7 @@ static bool compac_prepare(struct thr_info *thr)
 	return true;
 }
 
+//
 static void compac_shutdown(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
@@ -3076,8 +3077,8 @@ static void compac_shutdown(struct thr_info *thr)
 	applog(LOG_INFO, "%d: %s %d - shutting down", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 	if (!cgpu_bm1397->usbinfo.nodev) {
 		if (s_bm1397_info->asic_type == BM1397) {
-			calc_gsf_freq(cgpu_bm1397, 0, -1);
-			compac_toggle_reset(cgpu_bm1397);
+			calc_gsf_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
+			compac_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
 		}
 	}
 	s_bm1397_info->mining_state = MINER_SHUTDOWN;
@@ -3093,6 +3094,7 @@ static void compac_shutdown(struct thr_info *thr)
 /** **************************************************** **/
 
 static struct api_data *bm1397_api_stats(struct cgpu_info *cgpu_bm1397)
+
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	struct api_data *root = NULL;
@@ -3518,6 +3520,7 @@ static void bm1397_statline(char *buf, size_t bufsiz, struct cgpu_info *cgpu_bm1
 
 	tailsprintf(buf, bufsiz, "%s", asic_statline);
 }
+
 static char *bm1397_api_set(struct cgpu_info *cgpu_bm1397, char *option, char *setting, char *replybuf, size_t siz)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -3691,3 +3694,4 @@ struct device_drv bm1397_drv = {
 	.thread_init         = compac_init,
 	.thread_shutdown     = compac_shutdown,
 };
+  
