@@ -8,7 +8,7 @@
     "makefile.launchConfigurations": [
         {
             "name": "cgminer",
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build_x86_64/",
             "binaryPath": "${workspaceFolder}/build_x86_64/cgminer",
             "binaryArgs": []
         }

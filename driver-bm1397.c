@@ -1725,7 +1725,6 @@ static void *bm1397_mining_thread(void *object)
 
 		if (s_bm1397_info->chips == 0
 		||  cgpu_bm1397->deven == DEV_DISABLED
-		||  cgpu_bm1397->usbinfo.nodev
 		||  (s_bm1397_info->mining_state != MINER_MINING && s_bm1397_info->mining_state != MINER_MINING_DUPS))
 		{
 			gekko_usleep(s_bm1397_info, MS2US(10));
@@ -2233,18 +2232,12 @@ static void *bm1397_mining_thread(void *object)
 		}
 		cgtime(&now); // set the time we actually sent it
 
-		err = usb_write(cgpu_bm1397, (char *)s_bm1397_info->task, task_len, &sent_bytes, C_SENDWORK);
+		uart_write(cgpu_bm1397, (char *)s_bm1397_info->task, task_len, &sent_bytes);
 		dumpbuffer(cgpu_bm1397, LOG_WARNING, "TASK.TX", s_bm1397_info->task, task_len);
-		if (err != LIBUSB_SUCCESS)
-		{
-			applog(LOG_WARNING,"%d: %s %d - usb failure (%d)", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, err);
-			s_bm1397_info->mining_state = MINER_RESET;
-			continue;
-		}
 		if (sent_bytes != task_len)
 		{
 			if (ms_tdiff(&now, &s_bm1397_info->last_write_error) > (5 * 1000)) {
-				applog(LOG_WARNING,"%d: %s %d - usb write error [%d:%d]",
+				applog(LOG_WARNING,"%d: %s %d - uart write error [%d:%d]",
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, sent_bytes, task_len);
 				cgtime(&s_bm1397_info->last_write_error);
 			}
@@ -2379,7 +2372,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 {
 	unsigned char tu8_rx_buffer[BUFFER_MAX];
 	struct timeval now;
-	int read_bytes, tmo, pos = 0, len, i, prelen;
+	int read_bytes =0, tmo, pos = 0, len, i, prelen;
 	bool okcrc, used, chipped;
 	K_ITEM *item;
 
@@ -2398,7 +2391,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 			tmo = 1000;
 		}
 
-		//usb_read_timeout(cgpu_bm1397, ((char *)tu8_rx_buffer)+pos, BUFFER_MAX-pos, &read_bytes, tmo, C_GETRESULTS);
+		uart_read(s_bm1397_info->uart_device, ((char *)tu8_rx_buffer)+pos, BUFFER_MAX-pos, &read_bytes);
 		pos += read_bytes;
 
 		cgtime(&now);
@@ -2803,8 +2796,6 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	if (s_bm1397_info->chips == 0)
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
-	if (cgpu_bm1397->usbinfo.nodev)
-		return -1;
 	selective_yield();
 	cgtime(&now);
 
@@ -2846,7 +2837,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			init_task(s_bm1397_info);
 			dumpbuffer(cgpu_bm1397, LOG_DEBUG, "RAMP", s_bm1397_info->task, s_bm1397_info->task_len);
 
-			usb_write(cgpu_bm1397, (char *)s_bm1397_info->task, s_bm1397_info->task_len, &read_bytes, C_SENDWORK);
+			uart_write(cgpu_bm1397, (char *)s_bm1397_info->task, s_bm1397_info->task_len, &read_bytes);
 			if (s_bm1397_info->ramping > (s_bm1397_info->cores * s_bm1397_info->add_job_id)) {
 				//info->job_id = 0;
 				s_bm1397_info->mining_state = MINER_OPEN_CORE_OK;
@@ -2920,11 +2911,12 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	//return hashes;
 }
 
-static struct cgpu_info *bm1397_detect_one(char *uart_device_names)
+static struct cgpu_info *bm1397_detect_one(const char *uart_device_names, const char *gpio_chip, int gpio_line, int device_number)
 {
 	struct cgpu_info *cgpu_bm1397;
 	struct S_BM1397_INFO *s_bm1397_info;
 	struct S_UART_DEVICE *uart_interface;
+	struct S_GPIO_PORT *gpio_interface;
 	int i;
 	bool exclude_me = 0;
 
@@ -2932,7 +2924,8 @@ static struct cgpu_info *bm1397_detect_one(char *uart_device_names)
 
 	// all zero
 	s_bm1397_info = cgcalloc(1, sizeof(struct S_BM1397_INFO));
-	uart_interface = cgalloc(1, sizeof(struct S_UART_DEVICE));
+	uart_interface = cgcalloc(1, sizeof(struct S_UART_DEVICE));
+	gpio_interface = cgcalloc(1, sizeof(struct S_GPIO_PORT));
 
 #if TUNE_CODE
 	pthread_mutex_init(&s_bm1397_info->mutex_usleep_stats_lock, NULL);
@@ -2940,8 +2933,19 @@ static struct cgpu_info *bm1397_detect_one(char *uart_device_names)
 
 	cgpu_bm1397->device_data = (void *)s_bm1397_info;
 	
-	uart_init(uart_interface, uart_device_names, B115200);
+	
+	int ret = uart_init(uart_interface, uart_device_names, B115200);
+	if (ret != 0) {
+		free(s_bm1397_info);
+		cgpu_bm1397->device_data = NULL;
+		return NULL;
+	}
+	uart_interface->device_number = device_number;
 
+
+	gpio_init(gpio_interface, gpio_chip, gpio_line);
+	s_bm1397_info->uart_device = uart_interface;
+	s_bm1397_info->gpio_device = gpio_interface;
 	// TODO deals with this more cleanly
 	s_bm1397_info->ident = IDENT_GSF;
 
@@ -2954,14 +2958,13 @@ static struct cgpu_info *bm1397_detect_one(char *uart_device_names)
 	}
 
 	if (opt_gekko_serial != NULL && 
-		(strstr(opt_gekko_serial, cgpu_bm1397->uart_device->device) == NULL))
+		(strstr(opt_gekko_serial, s_bm1397_info->uart_device->name) == NULL))
 	{
 		exclude_me = true;
 	}
 
 	if (exclude_me)
 	{
-		usb_uninit(cgpu_bm1397);
 		free(s_bm1397_info);
 		cgpu_bm1397->device_data = NULL;
 		return NULL;
@@ -3036,7 +3039,7 @@ static bool compac_prepare(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	int device = (cgpu_bm1397->usbinfo.bus_number * 0xff + cgpu_bm1397->usbinfo.device_address) % 0xffff;
+	int device = s_bm1397_info->uart_device->device_number;
 
 	mutex_lock(&static_lock);
 	init_count = &dev_init_count[device];
@@ -3047,7 +3050,7 @@ static bool compac_prepare(struct thr_info *thr)
 	if (s_bm1397_info->init_count == 1) {
 		applog(LOG_WARNING, "%d: %s %d - %s (%s)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
-			cgpu_bm1397->usbdev->prod_string, cgpu_bm1397->unique_id);
+			s_bm1397_info->uart_device->name, cgpu_bm1397->unique_id);
 	} else {
 		applog(LOG_INFO, "%d: %s %d - init_count %d",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
@@ -3057,10 +3060,7 @@ static bool compac_prepare(struct thr_info *thr)
 	s_bm1397_info->p_running_thrd = thr;
 	s_bm1397_info->bauddiv = 0x19; // 115200
 
-	if (s_bm1397_info->init_count != 0 && s_bm1397_info->init_count % 5 == 0) {
-		applog(LOG_INFO, "%d: %s %d - forcing usb_nodev()", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
-		usb_nodev(cgpu_bm1397);
-	} else if (s_bm1397_info->init_count > 1) {
+	if (s_bm1397_info->init_count > 1) {
 		if (s_bm1397_info->init_count > 10) {
 			cgpu_bm1397->deven = DEV_DISABLED;
 		} else {
@@ -3070,18 +3070,15 @@ static bool compac_prepare(struct thr_info *thr)
 	return true;
 }
 
-//
+
 static void compac_shutdown(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	applog(LOG_INFO, "%d: %s %d - shutting down", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
-	if (!cgpu_bm1397->usbinfo.nodev) {
-		if (s_bm1397_info->asic_type == BM1397) {
-			calc_gsf_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
-			compac_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
-		}
-	}
+
+	calc_gsf_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
+	compac_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
 	s_bm1397_info->mining_state = MINER_SHUTDOWN;
 	pthread_join(s_bm1397_info->listening_thrd.pth, NULL); // Let thread close.
 	pthread_join(s_bm1397_info->work_thrd.pth, NULL); // Let thread close.
@@ -3113,7 +3110,7 @@ static struct api_data *bm1397_api_stats(struct cgpu_info *cgpu_bm1397)
 	else
 		tps = (double)(s_bm1397_info->tasks - 1) / taskdiff;
 
-	root = api_add_string(root, "Serial", cgpu_bm1397->usbdev->serial_string, false);
+	root = api_add_string(root, "Serial", s_bm1397_info->uart_device->name, false);
 	root = api_add_int(root, "Nonces", &s_bm1397_info->nonces, false);
 	root = api_add_int(root, "Accepted", &s_bm1397_info->accepted, false);
 	root = api_add_double(root, "TasksPerSec", &tps, true);

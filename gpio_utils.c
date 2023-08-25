@@ -3,9 +3,6 @@
 #include "logging.h"
 #include "miner.h"
 
-#define GPIO_CHIP_NAME "gpiochip1"
-#define GPIO_LINE_OFFSET 28
-
 
 /**
  * @brief Initialize a GPIO (General-Purpose Input/Output) line on a given GPIO chip.
@@ -22,7 +19,7 @@
  * 
  * @return Returns 0 on successful initialization, -1 otherwise.
  */
-void gpio_init(struct S_GPIO_PORT *s_device, char* gpiod_chip_name, unsigned int gpio_line_offset) {
+int gpio_init(struct S_GPIO_PORT *s_device, const char* gpiod_chip_name, unsigned int gpio_line_offset) {
 
     s_device->s_chip = gpiod_chip_open_by_name(gpiod_chip_name);
     if (!s_device->s_chip)

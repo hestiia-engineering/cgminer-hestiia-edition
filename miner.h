@@ -461,9 +461,6 @@ struct cgpu_info {
 	bool blacklisted;
 	bool nozlp; // Device prefers no zero length packet
 #endif
-#ifdef USE_UART
-	S_UART_DEVICE *uart_device;
-#endif
 	enum dev_enable deven;
 	int accepted;
 	int rejected;

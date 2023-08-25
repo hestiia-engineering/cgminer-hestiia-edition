@@ -266,11 +266,6 @@ struct GEKKOJOB
 	int last;
 };
 
-typedef struct{
-	uint8_t gpio_pin_offset;
-	uint8_t gpio_chip_name;
-} s_gpio_nrst;
-
 enum sub_ident {
 	IDENT_GSF,
 	IDENT_GSFM
@@ -347,8 +342,12 @@ struct S_BM1397_INFO {
 	int dupsall;                 // Duplicate nonce counter (total)
 	int dupsreset;		     	 // Duplicates since reset
 	int tracker;                 // Track code execution path
-	S_UART_DEVICE s_interface;               // Uart interface
-	s_gpio_nrst s_gpio_nrst;               // GPIO interface
+#ifdef USE_UART
+	struct S_UART_DEVICE *uart_device;
+#endif
+#ifdef USE_GPIOD
+	struct S_GPIO_PORT *gpio_device;
+#endif
 	int init_count;              // USB interface initialization counter
 	int low_eff_resets;          // Count of low_eff resets
 	int midstates;               // Number of midstates

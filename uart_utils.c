@@ -1,7 +1,7 @@
 #include "uart_utils.h"
 #include <fcntl.h>
 #include <unistd.h>
-#include "miner.h"
+#include "util.h"
 
 #define SRV_TIMEOUT 2
 
@@ -18,11 +18,24 @@ const char *uart_device_names[MAX_UART_DEVICES] = {
 	"/dev/ttyS3",
 };
 
+const char * gpio_chip[MAX_UART_DEVICES] = {
+	"gpiochip1",
+	"gpiochip2",
+	"gpiochip3",
+};
+
+const int gpio_line_offset[MAX_UART_DEVICES] = {
+	28,
+	29,
+	30,
+};
+
 #define MAX_UART_DEVICES 3
 
 int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_t speed)
 {
 	s_device->name = uart_device_name;
+	s_device->fd = -1;
 	s_device->speed = speed;
 
 	int fd;
@@ -68,80 +81,63 @@ int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_
 	return 0;
 }
 
-/* TODO: add errors processing */
-static int read_to(int fd, uint8_t* buffer, int len, int timeout)
-{
-	fd_set readset;
-	int result;
-	struct timeval tv;
 
-	FD_ZERO(&readset);
-	FD_SET(fd, &readset);
+/**
+ * @brief 
+ * 
+ * @param s_device 
+ * @param buf 
+ * @param bufsiz 
+ * @param processed 
+ */
+void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed) {
+	*processed = 0;
 
-	tv.tv_sec = timeout;
-	tv.tv_usec = 0;
-	result = select(fd + 1, &readset, NULL, NULL, &tv);
- 
-	if (result < 0)
-		return result;
-	else if (result > 0 && FD_ISSET(fd, &readset)) {
-		result = read(fd, buffer, len);
-		return result;
+	if (s_device->fd != -1) {
+		quit(1, "BM1397: %s() device [%s] is not initialized",
+				__func__, s_device->name);
 	}
-	return -2;
-}
-
-
-void uart_write(struct cgpu_info *cgpu, char *buf, size_t bufsiz, int *processed) {
-	S_UART_DEVICE *s_device = cgpu_info->;
-
-}
-static int write_to(int fd, uint8_t* buffer, int len, int timeout)
-{
-	fd_set writeset;
-	int result;
-	struct timeval tv;
-
-	FD_ZERO(&writeset);
-	FD_SET(fd, &writeset);
-
-	tv.tv_sec = timeout;
-	tv.tv_usec = 0;
-	result = select(fd + 1, NULL, &writeset, NULL, &tv);
-
-	if (result < 0)
-		return result;
-	else if (result > 0 && FD_ISSET(fd, &writeset)) {
-		result = write(fd, buffer, len);
-		return result;
+	if (buf == NULL) {
+		quit(1, "BM1397: %s() buffer is NULL",
+				__func__);
 	}
 
-	return -2;
+	int sent = write(s_device->fd, buf, bufsiz);
+	if (sent < 0) {
+		quit(1, "BM1397: %s() failed to write to device [%s]: %s",
+				__func__, s_device->name, strerror(errno));
+	}
+	*processed += sent;
 }
 
-int8_t uart_transfer(S_UART_DEVICE *attr)
-{
-	int ret;
-
-	if ((ret = write_to(attr->fd, attr->tx, attr->datalen, SRV_TIMEOUT)) < 1) {
-		applog(LOG_ERR, "BM1397: %s() failed to send UART message to [%s]: %s",
-				__func__, attr->device, strerror(errno));
-
-		attr->datalen = 0;
-		return -1;
+/**
+ * @brief 
+ * 
+ * @param s_device 
+ * @param buf 
+ * @param bufsiz 
+ * @param processed 
+ */
+void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed) {
+	
+	*processed = 0;
+	if (s_device->fd != -1) {
+		quit(1, "BM1397: %s() device [%s] is not initialized",
+				__func__, s_device->name);
+	}
+	if (buf == NULL) {
+		quit(1, "BM1397: %s() buffer is NULL",
+				__func__);
 	}
 
-	if ((ret = read_to(attr->fd, attr->rx, attr->size, SRV_TIMEOUT)) < 1) {
-		applog(LOG_ERR, "BM1397: %s() failed to read UART message from [%s]: %s",
-				__func__, attr->device, strerror(errno));
-
-		attr->datalen = 0;
-		return -1;
+	int readed = read(s_device->fd, buf, bufsiz);
+	if (readed < 0) {
+		quit(1, "BM1397: %s() failed to read from device [%s]: %s",
+				__func__, s_device->name, strerror(errno));
 	}
-
-	attr->datalen = ret;
-	return 0;
+	*processed += readed;
 }
+
 
 struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads){
 	struct cgpu_info *cgpu = cgcalloc(1, sizeof(*cgpu));
@@ -157,17 +153,17 @@ struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads){
  * @brief 
  * 
  * 
- * @param device_detect 
- * @param single 
+ * @param device_detect function pointer 
+ * @param single if set, will only initialise one driver
  */
-void __uart_detect(struct cgpu_info *(*device_detect)(struct uart_device_t *uart_device), bool single)
+void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_names, const char *gpio_chip, int gpio_line, int device_number), bool single)
 {
 	ssize_t count, i;
 	struct cgpu_info *cgpu;
 
 	for (i = 0; i < MAX_UART_DEVICES; i++) {
 		bool new_dev = false;
-		cgpu = device_detect(&uart_devices[i]);
+		cgpu = device_detect(uart_device_names[i], gpio_chip[i], gpio_line_offset[i], (i+1));
 		if (!cgpu) {
 			//TODO deals with errors and mutex if needed
 			asm volatile("nop");
@@ -181,9 +177,7 @@ void __uart_detect(struct cgpu_info *(*device_detect)(struct uart_device_t *uart
 	}
 }
 
-void uart_release(S_UART_DEVICE *attr)
+void uart_release(struct S_UART_DEVICE *s_device)
 {
-	free(attr->rx);
-	free(attr->tx);
-	close(attr->fd);
+	close(s_device->fd);
 }
