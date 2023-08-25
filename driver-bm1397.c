@@ -14,6 +14,7 @@
 #include "compat.h"
 #include <unistd.h>
 
+
 #ifdef __GNUC__
 #if __GNUC__ >= 7
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"

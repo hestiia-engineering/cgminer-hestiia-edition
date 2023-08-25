@@ -12,7 +12,12 @@
 #include "math.h"
 #include "miner.h"
 
+#ifdef USE_UART
 #include "uart_utils.h"
+#endif
+#ifdef USE_GPIOD
+#include "gpio_utils.h"
+#endif
 #include "klist.h"
 
 #include "driver_bm1397_utils.h"
