@@ -1246,20 +1246,16 @@ static void compac_update_work(struct cgpu_info *cgpu_bm1397)
 	s_bm1397_info->update_work = 1;
 }
 
-static void compac_flush_buffer(struct cgpu_info *cgpu_bm1397)
+static void bm1397_flush_buffer(struct cgpu_info *cgpu_bm1397)
 {
-	int read_bytes = 1;
-	unsigned char resp[32];
-
-	while (read_bytes) {
-		//TODO Flush UART buffer here
-		//usb_read_timeout(cgpu_bm1397, (char *)resp, 32, &read_bytes, 1, C_REQUESTRESULTS);
-	}
+	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	uart_flush(cgpu_bm1397->device_data);
+	
 }
 
 static void compac_flush_work(struct cgpu_info *cgpu_bm1397)
 {
-	compac_flush_buffer(cgpu_bm1397);
+	bm1397_flush_buffer(cgpu_bm1397);
 	compac_update_work(cgpu_bm1397);
 }
 
@@ -2804,7 +2800,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	switch (s_bm1397_info->mining_state) {
 		case MINER_INIT:
 			gekko_usleep(s_bm1397_info, MS2US(50));
-			compac_flush_buffer(cgpu_bm1397);
+			bm1397_flush_buffer(cgpu_bm1397);
 			s_bm1397_info->chips = 0;
 			s_bm1397_info->ramping = 0;
 			s_bm1397_info->frequency_syncd = 1;
@@ -2864,7 +2860,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			cgtime(&s_bm1397_info->last_frequency_report);
 			cgtime(&s_bm1397_info->last_micro_ping);
 			cgtime(&s_bm1397_info->s_tv_last_nonce);
-			compac_flush_buffer(cgpu_bm1397);
+			bm1397_flush_buffer(cgpu_bm1397);
 			compac_update_rates(cgpu_bm1397);
 			s_bm1397_info->update_work = 1;
 			s_bm1397_info->mining_state = MINER_MINING;
