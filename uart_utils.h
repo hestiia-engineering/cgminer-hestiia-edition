@@ -21,6 +21,8 @@ void uart_release(struct S_UART_DEVICE *attr);
 
 void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed);
 void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed);
+void uart_set_speed(struct S_UART_DEVICE *s_device,uint32_t speed );
+void uart_flush(struct S_UART_DEVICE *s_device);
 
 struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads);
 void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_names, const char *gpio_chip, int gpio_line, int device_number), bool single);

@@ -218,3 +218,43 @@ void uart_release(struct S_UART_DEVICE *s_device)
 {
 	close(s_device->fd);
 }
+
+
+void uart_set_speed(struct S_UART_DEVICE *s_device,uint32_t speed ) {
+
+	// check if fd is not initialized
+	if (s_device->fd == -1)
+	{
+		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
+			   __func__, s_device->name);
+	}
+
+	s_device->speed = speed;
+	if (cfsetospeed(&s_device->settings, speed) < 0)
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to set device output speed [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+	}
+
+	if (cfsetispeed(&s_device->settings, speed) < 0)
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to set device input speed [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+	}
+}
+
+void uart_flush(struct S_UART_DEVICE *s_device) {
+
+	// check if fd is not initialized
+	if (s_device->fd == -1)
+	{
+		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
+			   __func__, s_device->name);
+	}
+
+	if (tcflush(s_device->fd, TCOFLUSH) < 0)
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to flush device data [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+	}
+}
