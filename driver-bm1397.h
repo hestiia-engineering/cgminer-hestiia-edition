@@ -8,7 +8,8 @@
  * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.  See COPYING for more details.
  */
-
+#ifndef DRIVER_BM1397
+#define DRIVER_BM1397
 #include "math.h"
 #include "miner.h"
 
@@ -474,3 +475,4 @@ struct S_BM1397_INFO {
 };
 
 
+#endif // DRIVER_BM1397

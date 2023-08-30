@@ -1,3 +1,6 @@
+//set include guard 
+#ifndef DRIVER_BM1397_UTILS
+#define DRIVER_BM1397_UTILS
 #include "math.h"
 #include "miner.h"
 #include "uart_utils.h"
@@ -71,3 +74,4 @@ uint64_t bound(uint64_t value, uint64_t lower_bound, uint64_t upper_bound);
 
 
 //
+#endif //DRIVER_BM1397_UTILS

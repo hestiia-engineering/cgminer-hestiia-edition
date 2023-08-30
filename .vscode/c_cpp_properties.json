@@ -14,6 +14,9 @@
             "configurationProvider": "ms-vscode.makefile-tools",
             "compilerArgs": [
                 "-lpthread"
+            ],
+            "forcedInclude": [
+                "./build_x86_64/config.h"
             ]
         }
     ],

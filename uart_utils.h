@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <termios.h>
-#include <errno.h>
 #include "miner.h"
 
 

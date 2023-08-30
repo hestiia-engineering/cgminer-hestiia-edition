@@ -7,7 +7,7 @@
 #ifdef __USE_FORTIFY_LEVEL
 #undef __USE_FORTIFY_LEVEL
 #endif
-// ignore n truncation warnings
+//ignore n truncation warnings
 #define __USE_FORTIFY_LEVEL 1
 #if __GNUC__ >= 7
 // ignore the vast number of such non-bug warnings
@@ -262,14 +262,14 @@ static inline int fsync (int fd)
  * listed driver. */
 
 #define ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
-	DRIVER_ADD_COMMAND(gekko) \
+	DRIVER_ADD_COMMAND(gekko)\
 	DRIVER_ADD_COMMAND(bm1397) \
 
 #define DRIVER_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
 	ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND)
 
 #define DRIVER_ENUM(X) DRIVER_##X,
-#define DRIVER_PROTOTYPE(X) struct device_drv X##_drv;
+#define DRIVER_PROTOTYPE(X)  struct device_drv X##_drv;
 
 /* Create drv_driver enum from DRIVER_PARSE_COMMANDS macro */
 enum drv_driver {

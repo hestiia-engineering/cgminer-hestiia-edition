@@ -1,3 +1,5 @@
+#ifndef GPIO_UTILS
+#define GPIO_UTILS
 #include <gpiod.h>
 
 struct S_GPIO_PORT {   
@@ -12,3 +14,5 @@ void gpio_toggle(struct S_GPIO_PORT *s_device);
 void gpio_set(struct S_GPIO_PORT *s_device, unsigned int value);
 
 void gpio_release(struct S_GPIO_PORT *s_device);
+
+#endif // GPIO_UTILS

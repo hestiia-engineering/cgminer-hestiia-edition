@@ -1,0 +1,101 @@
+{
+    // Utilisez IntelliSense pour en savoir plus sur les attributs possibles.
+    // Pointez pour afficher la description des attributs existants.
+    // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Lancer CGMINER on Target",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_arm/cgminer",
+            "miDebuggerServerAddress": "beaglelight:11777",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+            ],
+            //"preLaunchTask": "Remote ARM debug setup"
+        },
+        {
+            "name": "(gdb) Lancement de canal",
+            "type": "cppdbg",
+            "logging": {
+                "engineLogging": true,
+                "trace": true,
+                "traceResponse": true
+            },
+            "request": "launch",
+            "program": "/home/debian/workspace/cgminer-hestiia-edition/cgminer-hestiia-edition/build_arm/cgminer",
+            "args": ["--api-listen", "--api-allow", "W:0/0", "-o", "stratum+tcp://stratum.braiins.com:3333", "-u", "olocrom.worker1", "-p", "x"],
+            "cwd": "/home/debian/workspace/cgminer-hestiia-edition/cgminer-hestiia-edition",
+            "environment": [],
+            "externalConsole": false,
+            "stopAtEntry": true,
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "pipeTransport": {
+                "debuggerPath": "/usr/bin/gdb",
+                "pipeProgram": "/usr/bin/ssh",
+                "pipeArgs": ["debian@beaglelight"],
+                "pipeCwd": "${workspaceFolder}",
+                // "sourceFileMap": {
+                //     // "remote": "local"
+                //     "${workspaceFolder}":"/home/debian/workspace/cgminer-hestiia-edition/cgminer-hestiia-edition"
+                // }
+            },
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+            ],
+            "sourceFileMap": {
+                // "remote": "local"
+                "/home/debian/workspace/cgminer-hestiia-edition/cgminer-hestiia-edition/":"${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Debug",
+            "type": "gdb",
+            "request": "launch",
+            "target": "${workspaceRoot}/build_debug_x86_64/cgminer",
+            "cwd": "${workspaceRoot}",
+            "stopAtEntry": true,
+            "valuesFormatting": "parseText",
+            "arguments": "--api-listen --api-allow W:0/0 -o stratum+tcp://stratum.braiins.com:3333 -u olocrom.worker1 -p x"
+        },
+        {
+            "name": "(gdb) Lancer",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_arm/cgminer",
+            "miDebuggerServerAddress": "beaglelight:11777",
+            "args": ["--api-listen", "--api-allow", "W:0/0", "-o", "stratum+tcp://stratum.braiins.com:3333", "-u", "olocrom.worker1", "-p", "x"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+            ],
+            //"preLaunchTask": "Remote ARM debug setup"
+        },
+    ]
+}

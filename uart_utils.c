@@ -6,6 +6,7 @@
 #define SRV_TIMEOUT 2
 
 #define MAX_UART_DEVICES 3
+#define UART_DEVICE_ENABLED 1
 
 // transformer ca sous forme d'un tableau de char
 const char *uart1_device_name = "/dev/ttyS1";
@@ -18,7 +19,7 @@ const char *uart_device_names[MAX_UART_DEVICES] = {
 	"/dev/ttyS3",
 };
 
-const char * gpio_chip[MAX_UART_DEVICES] = {
+const char *gpio_chip[MAX_UART_DEVICES] = {
 	"gpiochip1",
 	"gpiochip2",
 	"gpiochip3",
@@ -32,7 +33,7 @@ const int gpio_line_offset[MAX_UART_DEVICES] = {
 
 #define MAX_UART_DEVICES 3
 
-int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_t speed)
+int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, char *uart_device_name, uint32_t speed)
 {
 	s_device->name = uart_device_name;
 	s_device->fd = -1;
@@ -40,18 +41,28 @@ int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_
 
 	int fd;
 	if ((fd = open(s_device->name, O_RDWR | O_NOCTTY | O_NDELAY)) < 0)
-		quit(1, "BM1397: %s() failed to open device [%s]: %s",
-			__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to open device [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+	}
 
 	s_device->fd = fd;
 
 	if (fcntl(fd, F_SETFL, 0) < 0)
-		quit(1, "BM1397: %s() failed to set descriptor status flags [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to set descriptor status flags [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	if (tcgetattr(fd, &s_device->settings) < 0)
-		quit(1, "BM1397: %s() failed to get device attributes [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to get device attributes [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	s_device->settings.c_cflag &= ~PARENB; /* no parity */
 	s_device->settings.c_cflag &= ~CSTOPB; /* 1 stop bit */
@@ -59,101 +70,124 @@ int8_t uart_init(struct S_UART_DEVICE *s_device, char* uart_device_name, uint32_
 	s_device->settings.c_cflag |= CS8 | CLOCAL | CREAD; /* 8 bits */
 	s_device->settings.c_cc[VMIN] = 1;
 	s_device->settings.c_cc[VTIME] = 2;
-	s_device->settings.c_lflag = ICANON; /* canonical mode */
+	s_device->settings.c_lflag = ICANON;  /* canonical mode */
 	s_device->settings.c_oflag &= ~OPOST; /* raw output */
 
 	if (cfsetospeed(&s_device->settings, speed) < 0)
-		quit(1, "BM1397: %s() failed to set device output speed [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to set device output speed [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	if (cfsetispeed(&s_device->settings, speed) < 0)
-		quit(1, "BM1397: %s() failed to set device input speed [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to set device input speed [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	if (tcsetattr(fd, TCSANOW, &s_device->settings) < 0)
-		quit(1, "BM1397: %s() failed to get device attributes [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to get device attributes [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	if (tcflush(fd, TCOFLUSH) < 0)
-		quit(1, "BM1397: %s() failed to flush device data [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to flush device data [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
+		close(fd);
+		return -1;
+	}
 
 	return 0;
 }
 
-
 /**
- * @brief 
- * 
- * @param s_device 
- * @param buf 
- * @param bufsiz 
- * @param processed 
+ * @brief
+ *
+ * @param s_device
+ * @param buf
+ * @param bufsiz
+ * @param processed
  */
-void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed) {
+void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed)
+{
 	*processed = 0;
 
-	if (s_device->fd != -1) {
-		quit(1, "BM1397: %s() device [%s] is not initialized",
-				__func__, s_device->name);
+	if (s_device->fd == -1)
+	{
+		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
+			   __func__, s_device->name);
 	}
-	if (buf == NULL) {
-		quit(1, "BM1397: %s() buffer is NULL",
-				__func__);
+	if (buf == NULL)
+	{
+		applog(LOG_ERR, "BM1397: %s() buffer is NULL",
+			   __func__);
 	}
 
 	int sent = write(s_device->fd, buf, bufsiz);
-	if (sent < 0) {
-		quit(1, "BM1397: %s() failed to write to device [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	if (sent < 0)
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to write to device [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
 	}
 	*processed += sent;
 }
 
 /**
- * @brief 
- * 
- * @param s_device 
- * @param buf 
- * @param bufsiz 
- * @param processed 
+ * @brief
+ *
+ * @param s_device
+ * @param buf
+ * @param bufsiz
+ * @param processed
  */
-void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed) {
-	
+void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *processed)
+{
+
 	*processed = 0;
-	if (s_device->fd != -1) {
-		quit(1, "BM1397: %s() device [%s] is not initialized",
-				__func__, s_device->name);
+	if (s_device->fd == -1)
+	{
+		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
+			   __func__, s_device->name);
 	}
-	if (buf == NULL) {
-		quit(1, "BM1397: %s() buffer is NULL",
-				__func__);
+	if (buf == NULL)
+	{
+		applog(LOG_ERR, "BM1397: %s() buffer is NULL",
+			   __func__);
 	}
 
 	int readed = read(s_device->fd, buf, bufsiz);
-	if (readed < 0) {
-		quit(1, "BM1397: %s() failed to read from device [%s]: %s",
-				__func__, s_device->name, strerror(errno));
+	if (readed < 0)
+	{
+		applog(LOG_ERR, "BM1397: %s() failed to read from device [%s]: %s",
+			   __func__, s_device->name, strerror(errno));
 	}
 	*processed += readed;
 }
 
-
-struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads){
+struct cgpu_info *uart_alloc_cgpu(struct device_drv *drv, int threads)
+{
 	struct cgpu_info *cgpu = cgcalloc(1, sizeof(*cgpu));
 
 	cgpu->drv = drv;
 	cgpu->deven = DEV_ENABLED;
 	cgpu->threads = threads;
-	//cglock_init(&cgpu->usbinfo.devlock);
+	// cglock_init(&cgpu->usbinfo.devlock);
 	return cgpu;
 }
 
 /**
- * @brief 
- * 
- * 
- * @param device_detect function pointer 
+ * @brief
+ *
+ *
+ * @param device_detect function pointer
  * @param single if set, will only initialise one driver
  */
 void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_names, const char *gpio_chip, int gpio_line, int device_number), bool single)
@@ -161,15 +195,18 @@ void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_na
 	ssize_t count, i;
 	struct cgpu_info *cgpu;
 
-	for (i = 0; i < MAX_UART_DEVICES; i++) {
+	for (i = 0; i < UART_DEVICE_ENABLED; i++)
+	{
 		bool new_dev = false;
-		cgpu = device_detect(uart_device_names[i], gpio_chip[i], gpio_line_offset[i], (i+1));
-		if (!cgpu) {
-			//TODO deals with errors and mutex if needed
+		cgpu = device_detect(uart_device_names[i], gpio_chip[i], gpio_line_offset[i], (i + 1));
+		if (!cgpu)
+		{
+			// TODO deals with errors and mutex if needed
 			asm volatile("nop");
-			//cgminer_usb_unlock(drv, list[i]);
+			// cgminer_usb_unlock(drv, list[i]);
 		}
-		else {
+		else
+		{
 			new_dev = true;
 		}
 		if (single && new_dev)

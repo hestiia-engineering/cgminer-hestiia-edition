@@ -1268,7 +1268,6 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 	
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 
-
 	applog(s_bm1397_info->log_wide,"%d: %s %d - Toggling ASIC nRST to reset",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 
@@ -1283,14 +1282,17 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_TX, s_bm1397_info->interface, C_PURGETX);
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_RX, s_bm1397_info->interface, C_PURGERX);
 
+	gpio_set(s_bm1397_info->gpio_device, 1);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF2; // low byte: bitmask - 1111 0010 - CB1(HI)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
 	gekko_usleep(s_bm1397_info, MS2US(30));
 
+	gpio_set(s_bm1397_info->gpio_device, 0);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF0; // low byte: bitmask - 1111 0000 - CB1(LO)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
 	gekko_usleep(s_bm1397_info, MS2US(1000));
 
+	gpio_set(s_bm1397_info->gpio_device, 1);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF2; // low byte: bitmask - 1111 0010 - CB1(HI)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
 	gekko_usleep(s_bm1397_info, MS2US(200));
@@ -3013,14 +3015,6 @@ static struct cgpu_info *bm1397_detect_one(const char *uart_device_names, const 
 	if (!add_cgpu(cgpu_bm1397)) {
 		quit(1, "Failed to add_cgpu in bm1397_detect_one");
 	}
-
-	//update_usb_stats(cgpu_bm1397);
-
-	for (i = 0; i < 8; i++) {
-		cgpu_bm1397->unique_id[i] = cgpu_bm1397->unique_id[i+3];
-	}
-
-	cgpu_bm1397->unique_id[8] = 0;
 
 	s_bm1397_info->wait_factor = s_bm1397_info->wait_factor0;
 
