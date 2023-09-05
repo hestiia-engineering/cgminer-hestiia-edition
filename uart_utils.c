@@ -137,6 +137,7 @@ void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *p
 		applog(LOG_ERR, "BM1397: %s() failed to write to device [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
 	}
+	applog(LOG_ERR,"[UART_WRITE] Sent %d bytes to device %s -> %s", sent, s_device->name, buf);
 	*processed += sent;
 }
 
@@ -169,6 +170,7 @@ void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *pr
 		applog(LOG_ERR, "BM1397: %s() failed to read from device [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
 	}
+	applog(LOG_ERR,"[UART_READ] Received %d bytes from device %s", readed, s_device->name);
 	*processed += readed;
 }
 
@@ -208,6 +210,7 @@ void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_na
 		else
 		{
 			new_dev = true;
+			applog(LOG_ERR, "New BM1397: %d device on uart %s", i, uart_device_names[i]);
 		}
 		if (single && new_dev)
 			break;
@@ -252,7 +255,7 @@ void uart_flush(struct S_UART_DEVICE *s_device) {
 			   __func__, s_device->name);
 	}
 
-	if (tcflush(s_device->fd, TCOFLUSH) < 0)
+	if (tcflush(s_device->fd, TCIFLUSH) < 0)
 	{
 		applog(LOG_ERR, "BM1397: %s() failed to flush device data [%s]: %s",
 			   __func__, s_device->name, strerror(errno));

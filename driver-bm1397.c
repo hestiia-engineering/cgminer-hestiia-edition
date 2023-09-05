@@ -234,6 +234,7 @@ void dumpbuffer(struct cgpu_info *cgpu_bm1397, int LOG_LEVEL, char *note, unsign
 static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx, uint32_t bytes_buffer_lenght, uint32_t crc_bits, __maybe_unused char *msg)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	int read_bytes = 1;
 	unsigned int i, off = 0;
 
@@ -257,7 +258,7 @@ static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx,
 	int log_level = (bytes_buffer_lenght < s_bm1397_info->task_len) ? LOG_INFO : LOG_INFO;
 
 	dumpbuffer(cgpu_bm1397, log_level, "TX", s_bm1397_info->cmd, bytes_buffer_lenght);
-	uart_write(cgpu_bm1397, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes);
+	uart_write(s_uart_device, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes);
 	//usb_write(cgpu_bm1397, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes, C_REQUESTRESULTS);
 	//let the usb frame propagate
 	if (s_bm1397_info->asic_type == BM1397) {
@@ -1249,7 +1250,9 @@ static void compac_update_work(struct cgpu_info *cgpu_bm1397)
 static void bm1397_flush_buffer(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	uart_flush(cgpu_bm1397->device_data);
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
+	applog(LOG_ERR, "Flushing %s, with fd = %d", s_uart_device->name, s_uart_device->fd);
+	uart_flush(s_uart_device);
 	
 }
 
@@ -1676,6 +1679,7 @@ static void *bm1397_mining_thread(void *object)
 {
 	struct cgpu_info *cgpu_bm1397 = (struct cgpu_info *)object;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	struct work *work = NULL;
 	struct work *old_work = NULL;
 
@@ -2230,7 +2234,7 @@ static void *bm1397_mining_thread(void *object)
 		}
 		cgtime(&now); // set the time we actually sent it
 
-		uart_write(cgpu_bm1397, (char *)s_bm1397_info->task, task_len, &sent_bytes);
+		uart_write(s_uart_device, (char *)s_bm1397_info->task, task_len, &sent_bytes);
 		dumpbuffer(cgpu_bm1397, LOG_WARNING, "TASK.TX", s_bm1397_info->task, task_len);
 		if (sent_bytes != task_len)
 		{
@@ -2369,6 +2373,7 @@ static bool gsf_reply(struct S_BM1397_INFO *s_bm1397_info, unsigned char *tu8_rx
 static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO *s_bm1397_info)
 {
 	unsigned char tu8_rx_buffer[BUFFER_MAX];
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	struct timeval now;
 	int read_bytes =0, tmo, pos = 0, len, i, prelen;
 	bool okcrc, used, chipped;
@@ -2389,7 +2394,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 			tmo = 1000;
 		}
 
-		uart_read(s_bm1397_info->uart_device, ((char *)tu8_rx_buffer)+pos, BUFFER_MAX-pos, &read_bytes);
+		uart_read(s_uart_device, ((char *)tu8_rx_buffer)+pos, BUFFER_MAX-pos, &read_bytes);
 		pos += read_bytes;
 
 		cgtime(&now);
@@ -2573,6 +2578,7 @@ static bool compac_init(struct thr_info *thr)
 	int i;
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	float step_freq;
 
 	// all are currently this value
@@ -2785,7 +2791,8 @@ static int64_t compac_scanwork(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
+	
 	struct timeval now;
 	int read_bytes;
 	// uint64_t hashes = 0;
@@ -2835,7 +2842,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			init_task(s_bm1397_info);
 			dumpbuffer(cgpu_bm1397, LOG_DEBUG, "RAMP", s_bm1397_info->task, s_bm1397_info->task_len);
 
-			uart_write(cgpu_bm1397, (char *)s_bm1397_info->task, s_bm1397_info->task_len, &read_bytes);
+			uart_write(s_uart_device, (char *)s_bm1397_info->task, s_bm1397_info->task_len, &read_bytes);
 			if (s_bm1397_info->ramping > (s_bm1397_info->cores * s_bm1397_info->add_job_id)) {
 				//info->job_id = 0;
 				s_bm1397_info->mining_state = MINER_OPEN_CORE_OK;
@@ -3050,6 +3057,7 @@ static bool compac_prepare(struct thr_info *thr)
 	s_bm1397_info->p_running_thrd = thr;
 	s_bm1397_info->bauddiv = 0x19; // 115200
 
+	s_bm1397_info->micro_found = 1;
 	if (s_bm1397_info->init_count > 1) {
 		if (s_bm1397_info->init_count > 10) {
 			cgpu_bm1397->deven = DEV_DISABLED;
