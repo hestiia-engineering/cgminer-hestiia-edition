@@ -1061,6 +1061,7 @@ static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int ch
 static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	unsigned int i, j;
 
 	applog(LOG_ERR,"%d: %s %d - sending chain inactive for %d chip(s)",
@@ -1101,7 +1102,45 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		// set ticket based on chips, pool will be above this anyway
 		set_ticket(cgpu_bm1397, 0.0, true, false);
 
+		/**
+		 * Configure the PLL3 to 2.8 GHz
+		 * Hex value = C0700111
+		 * 				  C	   0 	7    0    0    1    1    1
+		 * Binary value : 1100 0000 0111 0000 0000 0001 0001 0001
+		 * [31] 1 -> Locked = true
+		 * [30] 1 -> PLL3 enable = true
+		 * [29-28] 00 -> unused
+		 * [27->16] 000001110000 -> PLL3 multiplier FBDIV = 112
+		 * [15-14] 00 -> unused
+		 * [13->8] 00000001 -> PLL3 pre-divider REFDIV = 1
+		 * [7] 0 -> unused
+		 * [6-4] 001 -> PLL3 post-divider POSTDIV1 = 1
+		 * [3] 0 -> unused
+		 * [2-0] 001 -> PLL3 post-divider POSTDIV2 = 1
+		 * Based on formula : 
+		 * fPLL3 = fCLKI * FBDIV / (REFDIV * POSTDIV1 * POSTDIV2) (with POSTDIV1 >=OSTDIV2.)
+		 * fPLL3 = 25 * 112 / (1 * 1 * 1) = 2800 MHz
+		 * 
+		 */
 		unsigned char init5[] = {BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_PLL3_PARAMETER, 0xC0, 0x70, 0x01, 0x11, BM1397_CRC5_PLACEHOLDER};
+
+		/**
+		 * @brief Configure the Fast Uart configuration to the default value
+		 * Hex value = 0x0600000F
+		 * 				  0	   6 	0    0    0    0    0    F
+		 * Binary value : 0000 0110 0000 0000 0000 0000 0000 1111
+		 * [31-30] 00 -> DIV4_ODDSET
+		 * [29-28] 00 -> unused
+		 * [27-24] 0000 -> PLL3_DIV4 -> this means that the PLL3 is divided by 6 + 1  -> 2800/7 = 400 MHz
+		 * [23-22] 00 -> USRC_ODDSET
+		 * [21-16] 000000 -> USRC_DIV
+		 * [15] 0 -> ForceCoreEnable
+		 * [14] 0 -> CLKO_SEL
+		 * [13-12] 00 -> CLKO_ODDSET
+		 * [11-8] 0000 -> unused
+		 * [7-0] 00001111 -> CLKO_DIV
+		 * 
+		 * 		 */
 		unsigned char init6[] = {BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_FAST_UART_CONFIG, 0x06, 0x00, 0x00, 0x0F, BM1397_CRC5_PLACEHOLDER};
 
 		for (j = 0; j < 2; j++)
@@ -1112,15 +1151,29 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		hashboard_send(cgpu_bm1397, init6, sizeof(init6), 8 * sizeof(init6) - 8, "init6");
 		gekko_usleep(s_bm1397_info, MS2US(100));
 
+		/**
+		 * @brief Configure the UART to use PLL3 as clock source 
+		 * Hex value = 0x00006131
+		 * 				  0	   0 	0    0    0    0    6    1    3    1
+		 * Binary value : 0000 0000 0000 0000 0000 0000 0110 0001 0011 0001
+		 * [31-28] 0000 -> unused
+		 * [27-24] 0000 -> BT8D_8-5
+		 * [23] 0 -> unused
+		 * [22] 
+		 * [21]
+		 * [20]
+		 * 
+		 */
 		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x61, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
 		s_bm1397_info->bauddiv = 1; // 1.5M
 
 		applog(LOG_ERR, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, baudrate[5], baudrate[6], s_bm1397_info->bauddiv + 1);
-		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");
+		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");*/
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
 		//TODO change baudrate here
+		//uart_set_speed(s_uart_device, B3000000);
 		//usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD, s_bm1397_info->bauddiv + 1,
 		//		(FTDI_INDEX_BAUD_BTS & 0xff00) | s_bm1397_info->interface, C_SETBAUD);
 		gekko_usleep(s_bm1397_info, MS2US(10));

@@ -238,6 +238,9 @@ void uart_release(struct S_UART_DEVICE *s_device)
 
 void uart_set_speed(struct S_UART_DEVICE *s_device,uint32_t speed ) {
 
+
+	applog(LOG_ERR, "BM1397: %s() device [%s] changing baudrate to %d",
+		   __func__, s_device->name, speed);
 	// check if fd is not initialized
 	if (s_device->fd == -1)
 	{
