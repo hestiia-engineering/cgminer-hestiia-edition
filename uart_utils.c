@@ -64,14 +64,27 @@ int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, 
 		return -1;
 	}
 
-	s_device->settings.c_cflag &= ~PARENB; /* no parity */
-	s_device->settings.c_cflag &= ~CSTOPB; /* 1 stop bit */
-	s_device->settings.c_cflag &= ~CSIZE;
-	s_device->settings.c_cflag |= CS8 | CLOCAL | CREAD; /* 8 bits */
-	s_device->settings.c_cc[VMIN] = 1;
-	s_device->settings.c_cc[VTIME] = 2;
-	s_device->settings.c_lflag = ICANON;  /* canonical mode */
-	s_device->settings.c_oflag &= ~OPOST; /* raw output */
+    s_device->settings.c_cflag &= ~PARENB; // Clear parity bit, disabling parity (most common)
+    s_device->settings.c_cflag &= ~CSTOPB; // Clear stop field, only one stop bit used in communication (most common)
+    s_device->settings.c_cflag &= ~CSIZE; // Clear all bits that set the data size 
+    s_device->settings.c_cflag |= CS8; // 8 bits per byte (most common)
+    s_device->settings.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines (CLOCAL = 1)
+
+    s_device->settings.c_lflag &= ~ICANON;
+    s_device->settings.c_lflag &= ~ECHO; // Disable echo
+    s_device->settings.c_lflag &= ~ECHOE; // Disable erasure
+    s_device->settings.c_lflag &= ~ECHONL; // Disable new-line echo
+    s_device->settings.c_lflag &= ~ISIG; // Disable interpretation of INTR, QUIT and SUSP
+    s_device->settings.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
+    s_device->settings.c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL); // Disable any special handling of received bytes
+
+    s_device->settings.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes (e.g. newline chars)
+    s_device->settings.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
+    // s_device->settings.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
+    // s_device->settings.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
+
+    s_device->settings.c_cc[VTIME] = 10;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+    s_device->settings.c_cc[VMIN] = 0;
 
 	if (cfsetospeed(&s_device->settings, speed) < 0)
 	{
