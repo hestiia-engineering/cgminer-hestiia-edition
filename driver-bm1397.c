@@ -231,6 +231,28 @@ void dumpbuffer(struct cgpu_info *cgpu_bm1397, int LOG_LEVEL, char *note, unsign
 	}
 }
 
+
+/**
+ * @brief Sends data to the BM1397 mining chip via UART.
+ *
+ * This function formats and sends commands to the BM1397 mining chip.
+ * It also performs the necessary CRC checks before sending.
+ *
+ * @param[in] cgpu_bm1397 Pointer to the cgpu_info structure containing general information about the mining device.
+ * @param[in] req_tx Pointer to the buffer containing the data to be sent.
+ * @param[in] bytes_buffer_length Length of the data in bytes to be sent.
+ * @param[in] crc_bits Number of bits used for CRC calculation.
+ * @param[in] msg (__maybe_unused) An optional message, currently unused in the function but may be used for debugging or logging.
+ *
+ * @note This function will modify the data buffer to include headers and CRC, based on the ASIC type, before sending it.
+ *
+ * @warning This function is very low-level and interacts directly with hardware. Extreme caution should be taken when modifying this function.
+ *
+ * @todo Add details about error handling.
+ * @todo Add details about threading concerns, if applicable.
+ * @todo Describe the expected behavior if the function encounters an error condition.
+ */
+
 static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx, uint32_t bytes_buffer_lenght, uint32_t crc_bits, __maybe_unused char *msg)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -259,8 +281,7 @@ static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx,
 
 	dumpbuffer(cgpu_bm1397, log_level, "TX", s_bm1397_info->cmd, bytes_buffer_lenght);
 	uart_write(s_uart_device, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes);
-	//usb_write(cgpu_bm1397, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes, C_REQUESTRESULTS);
-	//let the usb frame propagate
+
 	if (s_bm1397_info->asic_type == BM1397) {
 		gekko_usleep(s_bm1397_info, s_bm1397_info->usb_prop);
 	} else {
@@ -1118,7 +1139,7 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		 * [3] 0 -> unused
 		 * [2-0] 001 -> PLL3 post-divider POSTDIV2 = 1
 		 * Based on formula : 
-		 * fPLL3 = fCLKI * FBDIV / (REFDIV * POSTDIV1 * POSTDIV2) (with POSTDIV1 >=OSTDIV2.)
+		 * fPLL3 = fCLKI * FBDIV / (REFDIV * POSTDIV1 * POSTDIV2) (with POSTDIV1 >=POSTDIV2.)
 		 * fPLL3 = 25 * 112 / (1 * 1 * 1) = 2800 MHz
 		 * 
 		 */
@@ -1152,34 +1173,42 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		gekko_usleep(s_bm1397_info, MS2US(100));
 
 		/**
-		 * @brief Configure the UART to use PLL3 as clock source 
+		 * @brief Configure the UART to use fCLKI (25MH) as clock source 
 		 * Hex value = 0x00006131
-		 * 				  0	   0 	0    0    0    0    6    1    3    1
-		 * Binary value : 0000 0000 0000 0000 0000 0000 0110 0001 0011 0001
+		 * 				   0    0    0    0    6    1    3    1
+		 * Binary value :  0000 0000 0000 0000 0110 0001 0011 0001
 		 * [31-28] 0000 -> unused
 		 * [27-24] 0000 -> BT8D_8-5
 		 * [23] 0 -> unused
-		 * [22] 
-		 * [21]
-		 * [20]
-		 * 
+		 * [22] 0 -> core_srst
+		 * [21] 0 -> SPAT_NOD
+		 * [20] 0 -> RVS_K0
+		 * [19-18] 0 -> DSCLK_SEL
+		 * [17] 0 -> TOP_CLK_SEL
+		 * [16] 0 -> BCKL_SEL -> source is fCLKI
+		 * [15] 0 -> ERR_NONCE
+		 * [14] 1 -> RFS (1: SDA0)
+		 * [13] 1 -> INV_CLKLO
+		 * [12-8] 00001 -> BT8D_4-0
+		 * [7] 0 -> WORK_ERR_FLAG
+		 * [6-4] 011 -> TFS (3 -> SCL0)
+		 * [3-2] 00 -> unused
+		 * [1-0] 01 -> Hashrate TWS
 		 */
 		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x61, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
-		s_bm1397_info->bauddiv = 1; // 1.5M
+		s_bm1397_info->bauddiv = 1; // 1.5M  // bauddiv is BT8D value
 
 		applog(LOG_ERR, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, baudrate[5], baudrate[6], s_bm1397_info->bauddiv + 1);
-		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");*/
+		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
 		//TODO change baudrate here
-		//uart_set_speed(s_uart_device, B3000000);
-		//usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD, s_bm1397_info->bauddiv + 1,
-		//		(FTDI_INDEX_BAUD_BTS & 0xff00) | s_bm1397_info->interface, C_SETBAUD);
+		//uart_set_speed(s_uart_device, B1500000);
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
 		calc_gsf_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
-
+		
 		gekko_usleep(s_bm1397_info, MS2US(20));
 	}
 
@@ -1276,7 +1305,6 @@ static void compac_update_rates(struct cgpu_info *cgpu_bm1397)
 static void compac_set_frequency(struct cgpu_info *cgpu_bm1397, float frequency)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	uint32_t i, r, r1, r2, r3, p1, p2, pll;
 	struct timeval now;
 
 	calc_gsf_freq(cgpu_bm1397, frequency, -1);
@@ -2332,49 +2360,81 @@ static void *bm1397_mining_thread(void *object)
 	return NULL;
 }
 
-//Only for Bm1397
+
+/**
+ * @brief Worker function for managing nonces in a mining operation.
+ * 
+ * This function serves as a thread worker for the BM1397 ASIC miner. It pulls nonces 
+ * from a shared queue and processes them. The function will wait at most 42 milliseconds 
+ * for a nonce to become available in the queue before timing out. If the mining state 
+ * becomes 'MINER_SHUTDOWN', the function will terminate.
+ * 
+ * @param object A pointer to a `cgpu_info` struct, which contains device-specific information
+ *               for the BM1397 miner.
+ *
+ * @return NULL since the function is intended to be used as a thread worker.
+ */
+/**
+ * @brief Worker function for managing nonces in a mining operation.
+ *
+ * @param object A pointer to a `cgpu_info` struct containing device-specific information.
+ * @return NULL since the function is intended to be used as a thread worker.
+ */
 static void *compac_gsf_nonce_que(void *object)
 {
-	struct cgpu_info *cgpu_bm1397 = (struct cgpu_info *)object;
-	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	struct timespec abstime, addtime;
-	K_ITEM *item;
-	int rc;
+    // Cast the object to its specific type
+    struct cgpu_info *cgpu_bm1397 = (struct cgpu_info *)object;
+    struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+    struct timespec tv_abstime, tv_addtime;
+    K_ITEM *ps_kitem_item;
+    int i32_rc;
 
-	if (s_bm1397_info->asic_type != BM1397)
-		return NULL;
+    // Check if the ASIC type matches BM1397
+    if (s_bm1397_info->asic_type != BM1397)
+        return NULL;
 
-	// wait at most 42ms for a nonce
-	ms_to_timespec(&addtime, 42);
+    // Initialize a timespec struct for a 42ms wait time
+    ms_to_timespec(&tv_addtime, NONCE_TIMEOUT_MS);
 
-	while (s_bm1397_info->mining_state != MINER_SHUTDOWN)
-	{
-		K_WLOCK(s_bm1397_info->nlist);
-		item = k_unlink_head(s_bm1397_info->nstore);
-		K_WUNLOCK(s_bm1397_info->nlist);
+    // Continue processing as long as the mining state is not set to shutdown
+    while (s_bm1397_info->mining_state != MINER_SHUTDOWN)
+    {
+        // Lock the nonce list and attempt to retrieve the head item
+        K_WLOCK(s_bm1397_info->s_klist_nonce_list);
+        ps_kitem_item = k_unlink_head(s_bm1397_info->s_klist_nonce_store);
+        K_WUNLOCK(s_bm1397_info->s_klist_nonce_list);
 
-		if (item)
-		{
-			compac_gsf_nonce(cgpu_bm1397, item);
-			K_WLOCK(s_bm1397_info->nlist);
-			k_add_head(s_bm1397_info->nlist, item);
-			K_WUNLOCK(s_bm1397_info->nlist);
-		}
-		else
-		{
-			cgcond_time(&abstime);
-			timeraddspec(&abstime, &addtime);
-			mutex_lock(&s_bm1397_info->nlock);
-			rc = pthread_cond_timedwait(&s_bm1397_info->ncond, &s_bm1397_info->nlock, &abstime);
-			mutex_unlock(&s_bm1397_info->nlock);
-			if (rc == ETIMEDOUT)
-				s_bm1397_info->ntimeout++;
-			else
-				s_bm1397_info->ntrigger++;
-		}
-	}
-	return NULL;
+        // If a nonce item exists, process it
+        if (ps_kitem_item)
+        {
+            compac_gsf_nonce(cgpu_bm1397, ps_kitem_item);
+
+            // Re-insert the processed item back into the nonce list
+            K_WLOCK(s_bm1397_info->s_klist_nonce_list);
+            k_add_head(s_bm1397_info->s_klist_nonce_list, ps_kitem_item);
+            K_WUNLOCK(s_bm1397_info->s_klist_nonce_list);
+        }
+        else  // No nonce item exists
+        {
+            // Get current time and add 42ms to it for timed waiting
+            cgcond_time(&tv_abstime);
+            timespec_add(&tv_abstime, &tv_addtime);
+
+            // Wait on a condition variable with a timeout
+            mutex_lock(&s_bm1397_info->nonce_lock);
+            i32_rc = pthread_cond_timedwait(&s_bm1397_info->ncond, &s_bm1397_info->nonce_lock, &tv_abstime);
+            mutex_unlock(&s_bm1397_info->nonce_lock);
+
+            // Update timeout or trigger counters based on the wait result
+            if (i32_rc == ETIMEDOUT)
+                s_bm1397_info->ntimeout++;
+            else
+                s_bm1397_info->ntrigger++;
+        }
+    }
+    return NULL;
 }
+
 
 /**
  * @brief 
@@ -2386,7 +2446,7 @@ static void *compac_gsf_nonce_que(void *object)
  * @return true 
  * @return false 
  */
-static bool gsf_reply(struct S_BM1397_INFO *s_bm1397_info, unsigned char *tu8_rx_buffer, int len, struct timeval *now)
+static bool bm1397_set_frequency_reply(struct S_BM1397_INFO *s_bm1397_info, unsigned char *tu8_rx_buffer, int len, struct timeval *now)
 {
 	unsigned char FBDIV, REFDIV, POSTDIV1, postdiv2;
 	bool used = false;
@@ -2423,96 +2483,124 @@ static bool gsf_reply(struct S_BM1397_INFO *s_bm1397_info, unsigned char *tu8_rx
 	return used;
 }
 
+/**
+ * @brief Listens to and handles incoming data from the BM1397 mining chip.
+ *
+ * This function is responsible for listening to incoming data from the BM1397 mining chip
+ * via UART, handling various mining states, and processing received messages.
+ *
+ * @param[in] cgpu_bm1397 Pointer to the cgpu_info structure containing information about the mining device.
+ * @param[in] s_bm1397_info Pointer to the S_BM1397_INFO structure containing ASIC-specific information.
+ *
+ * @return NULL Always returns NULL as the function runs in a loop until mining is shutdown.
+ *
+ * @note This function runs in its own thread and will loop indefinitely until the mining state
+ * is set to MINER_SHUTDOWN.
+ *
+ *
+ * @todo Add details about error handling.
+ * @todo Add details about threading concerns, if applicable.
+ * @todo Describe the expected behavior if the function encounters an error condition.
+ */
 static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO *s_bm1397_info)
 {
 	unsigned char tu8_rx_buffer[BUFFER_MAX];
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
-	struct timeval now;
-	int read_bytes =0, tmo, pos = 0, len, i, prelen;
-	bool okcrc, used, chipped;
-	K_ITEM *item;
+	struct timeval tv_now;
+	int i32_bytes_readed = 0, i32_timeout, i32_read_offset = 0, i32_lenght, i, prelen;
+	bool b_crc_ok, b_already_consumed, b_chipped;
+	K_ITEM *s_kitem_item;
 
 	memset(tu8_rx_buffer, 0, sizeof(tu8_rx_buffer));
 
 	while (s_bm1397_info->mining_state != MINER_SHUTDOWN)
 	{
-		tmo = 20;
+		i32_timeout = 20;
+		
 
+		//TODO : move this into the mining_thread to avoid writing into listing thread
 		if (s_bm1397_info->mining_state == MINER_CHIP_COUNT)
 		{
 			unsigned char chippy[] = {BM1397_CHAIN_READ_REG, 0x05, BM1397_DEFAULT_CHIP_ADDR, BM1397_CHIP_ADDR, 0x0A};
 			hashboard_send(cgpu_bm1397, chippy, sizeof(chippy), 8 * sizeof(chippy) - 8, "CHIPPY");
 			s_bm1397_info->mining_state = MINER_CHIP_COUNT_XX;
 			// initial config reply allow much longer
-			tmo = 1000;
+			i32_timeout = 1000;
 		}
 
 		if (s_bm1397_info->mining_state != MINER_RESET)
 		{
-			uart_read(s_uart_device, ((char *)tu8_rx_buffer)+pos, BUFFER_MAX-pos, &read_bytes);
-			pos += read_bytes;
+			uart_read(s_uart_device, ((char *)tu8_rx_buffer)+i32_read_offset, BUFFER_MAX-i32_read_offset, &i32_bytes_readed);
+			i32_read_offset += i32_bytes_readed;
 		}
 
-		cgtime(&now);
 
-		// all replies should be info->rx_len
-		while (read_bytes > 0 && pos >= (int)(s_bm1397_info->rx_len))
+		//Store current time
+		cgtime(&tv_now);
+
+		// all replies should be s_bm1397_info->rx_len
+		while (i32_bytes_readed > 0 && i32_read_offset >= (int)(s_bm1397_info->rx_len))
 		{
-			// rubbish - skip over it to next 0xaa
+			// Go throught the buffer and find the next 0xaa 0x55, then move it to the buffer start
 			if (tu8_rx_buffer[0] != 0xaa || tu8_rx_buffer[1] != 0x55)
 			{
-				for (i = 1; i < pos; i++)
+				for (i = 1; i < i32_read_offset; i++)
 				{
 					if (tu8_rx_buffer[i] == 0xaa)
 					{
 						// next read could be 0x55 or i+1=0x55
-						if (i == (pos - 1) || tu8_rx_buffer[i+1] == 0x55)
+						if (i == (i32_read_offset - 1) || tu8_rx_buffer[i+1] == 0x55)
 							break;
 					}
 				}
 				// no 0xaa dump it and wait for more data
-				if (i >= pos)
+				if (i >= i32_read_offset)
 				{
-					pos = 0;
+					i32_read_offset = 0;
 					continue;
 				}
 				// i=0xaa dump up to i-1
-				memmove(tu8_rx_buffer, tu8_rx_buffer+i, pos-i);
-				pos -= i;
+				memmove(tu8_rx_buffer, tu8_rx_buffer+i, i32_read_offset-i);
+				i32_read_offset -= i;
 
-				if (pos < (int)(s_bm1397_info->rx_len))
+				if (i32_read_offset < (int)(s_bm1397_info->rx_len))
 					continue;
 			}
 
 			// find next 0xaa 0x55
-			for (len = s_bm1397_info->rx_len; len < pos; len++)
+			for (i32_lenght = s_bm1397_info->rx_len; i32_lenght < i32_read_offset; i32_lenght++)
 			{
-				if (tu8_rx_buffer[len] == 0xaa
-				&&  (len == (pos-1) || tu8_rx_buffer[len+1] == 0x55))
+				if (tu8_rx_buffer[i32_lenght] == 0xaa
+				&&  (i32_lenght == (i32_read_offset-1) || tu8_rx_buffer[i32_lenght+1] == 0x55))
 					break;
 			}
 
-			prelen = len;
+			prelen = i32_lenght;
 			// a reply followed by only 0xaa but no 0x55 yet
-			if (len == pos && (len == 8 || len == 10) && tu8_rx_buffer[pos-1] == 0xaa)
-				len--;
+			if (i32_lenght == i32_read_offset && (i32_lenght == 8 || i32_lenght == 10) && tu8_rx_buffer[i32_read_offset-1] == 0xaa)
+				i32_lenght--;
 
 			// try it as a nonce
-			if (len != (int)(s_bm1397_info->rx_len))
-				len = s_bm1397_info->rx_len;
+			if (i32_lenght != (int)(s_bm1397_info->rx_len))
+				i32_lenght = s_bm1397_info->rx_len;
 
-			if (tu8_rx_buffer[len-1] <= 0x1f
-			&&  bmcrc(tu8_rx_buffer+2, 8 * (len-2) - 5) == tu8_rx_buffer[len-1])
-				okcrc = true;
+
+			// CRC check
+			if ( tu8_rx_buffer[i32_lenght-1] <= 0x1f && bmcrc(tu8_rx_buffer+2, 8 * (i32_lenght-2) - 5) == tu8_rx_buffer[i32_lenght-1])
+			{
+				b_crc_ok = true;
+			}
 			else
-				okcrc = false;
+			{
+				b_crc_ok = false;
+			}
 
 			switch (s_bm1397_info->mining_state)
 			{
 			 case MINER_CHIP_COUNT:
 			 case MINER_CHIP_COUNT_XX:
 				// BM1397
-				chipped = false;
+				b_chipped = false;
 				if (tu8_rx_buffer[2] == 0x13 && tu8_rx_buffer[3] == 0x97)
 				{
 					struct S_ASIC_INFO *s_asic_info = &s_bm1397_info->asics[s_bm1397_info->chips];
@@ -2526,10 +2614,10 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 					s_bm1397_info->chips++;
 					s_bm1397_info->mining_state = MINER_CHIP_COUNT_XX;
 					compac_update_rates(cgpu_bm1397);
-					chipped = true;
+					b_chipped = true;
 				}
 				// ignore all data until we get at least 1 chip reply
-			 	if (!chipped && s_bm1397_info->mining_state == MINER_CHIP_COUNT_XX)
+			 	if (!b_chipped && s_bm1397_info->mining_state == MINER_CHIP_COUNT_XX)
 				{
 					// we found some chips then it replied with other data ...
 					if (s_bm1397_info->chips > 0)
@@ -2541,56 +2629,66 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 						mutex_unlock(&static_lock);
 
 						// don't discard the data
-						if (len == (int)(s_bm1397_info->rx_len) && okcrc)
-							gsf_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &now);
+						if (i32_lenght == (int)(s_bm1397_info->rx_len) && b_crc_ok)
+							bm1397_set_frequency_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &tv_now);
 					}
 					else
 						s_bm1397_info->mining_state = MINER_RESET;
 				}
 				break;
 			 case MINER_MINING:
-				used = false;
-				if (len == (int)(s_bm1397_info->rx_len) && okcrc)
+				b_already_consumed = false;
+
+				// First check if it's a gekko_set_frequency reply
+				if (i32_lenght == (int)(s_bm1397_info->rx_len) && b_crc_ok)
 				{
-					used = gsf_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &now);
+					b_already_consumed = bm1397_set_frequency_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &tv_now);
 				}
 
 				// also try unidentifed crc's as a nonce
-				if (!used)
+				if (!b_already_consumed)
 				{
-					K_WLOCK(s_bm1397_info->nlist);
-					item = k_unlink_head(s_bm1397_info->nlist);
-					K_WUNLOCK(s_bm1397_info->nlist);
-					DATA_NONCE(item)->i32_asic = 0;
-					// should never be true ...
-					if (len > (int)sizeof(DATA_NONCE(item)->tu8_rx_buffer))
-						len = (int)sizeof(DATA_NONCE(item)->tu8_rx_buffer);
-					memcpy(DATA_NONCE(item)->tu8_rx_buffer, tu8_rx_buffer, len);
-					DATA_NONCE(item)->sizet_len = len;
-					DATA_NONCE(item)->sizet_previous_len = prelen;
-					DATA_NONCE(item)->s_tv_when.tv_sec = now.tv_sec;
-					DATA_NONCE(item)->s_tv_when.tv_usec = now.tv_usec;
-					K_WLOCK(s_bm1397_info->nlist);
-					k_add_tail(s_bm1397_info->nstore, item);
-					K_WUNLOCK(s_bm1397_info->nlist);
-					mutex_lock(&s_bm1397_info->nlock);
-					pthread_cond_signal(&s_bm1397_info->ncond);
-					mutex_unlock(&s_bm1397_info->nlock);
+					K_WLOCK(s_bm1397_info->s_klist_nonce_list);
+					s_kitem_item = k_unlink_head(s_bm1397_info->s_klist_nonce_list);
+					K_WUNLOCK(s_bm1397_info->s_klist_nonce_list);
+					
+					// Avoid overflowing the item buffer
+					if (i32_lenght > (int)sizeof(DATA_NONCE(s_kitem_item)->tu8_rx_buffer)) {
+						i32_lenght = (int)sizeof(DATA_NONCE(s_kitem_item)->tu8_rx_buffer);
+					}
+
+					memcpy(DATA_NONCE(s_kitem_item)->tu8_rx_buffer, tu8_rx_buffer, i32_lenght); //Fill the buffer with the data received
+					//Fill the nonce data structure S_COMPAC_NONCE
+					DATA_NONCE(s_kitem_item)->i32_asic = 0;
+					DATA_NONCE(s_kitem_item)->sizet_len = i32_lenght;
+					DATA_NONCE(s_kitem_item)->sizet_previous_len = prelen;
+					DATA_NONCE(s_kitem_item)->s_tv_when.tv_sec = tv_now.tv_sec;
+					DATA_NONCE(s_kitem_item)->s_tv_when.tv_usec = tv_now.tv_usec;
+
+					//Store this item in the list for beeing processed in nonce_thread cf compac_gsf_nonce_que
+					K_WLOCK(s_bm1397_info->s_klist_nonce_list);
+					k_add_tail(s_bm1397_info->s_klist_nonce_store, s_kitem_item);  
+					K_WUNLOCK(s_bm1397_info->s_klist_nonce_list);
+
+					// Wake up the nonce_thread cf compac_gsf_nonce_que
+					mutex_lock(&s_bm1397_info->nonce_lock);
+					pthread_cond_signal(&s_bm1397_info->ncond);  
+					mutex_unlock(&s_bm1397_info->nonce_lock);
 				}
 				break;
 			 default:
-				used = false;
-				if (len == (int)(s_bm1397_info->rx_len) && okcrc)
-					used = gsf_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &now);
+				b_already_consumed = false;
+				if (i32_lenght == (int)(s_bm1397_info->rx_len) && b_crc_ok)
+					b_already_consumed = bm1397_set_frequency_reply(s_bm1397_info, tu8_rx_buffer, s_bm1397_info->rx_len, &tv_now);
 				break;
 			}
 			// we've used up 0..len-1
-			if (pos > len)
-				memmove(tu8_rx_buffer, tu8_rx_buffer+len, pos-len);
-			pos -= len;
+			if (i32_read_offset > i32_lenght)
+				memmove(tu8_rx_buffer, tu8_rx_buffer+i32_lenght, i32_read_offset-i32_lenght);
+			i32_read_offset -= i32_lenght;
 		}
 
-		if (read_bytes == 0 || pos < 6)
+		if (i32_bytes_readed == 0 || i32_read_offset < 6)
 		{
 			if (s_bm1397_info->mining_state == MINER_CHIP_COUNT_XX)
 			{
@@ -2614,7 +2712,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 	}
 	return NULL;
 }
-// Wrapper for reading data from miner.
+// Wrapper for handling incoming data from the miner.
 // @Todo to document
 // @mp : renvoie vers compac_listen2 dans le cas d'un BM1397
 static void *compac_listen(void *object)
@@ -2784,9 +2882,9 @@ static bool compac_init(struct thr_info *thr)
 
 		if (s_bm1397_info->ident == IDENT_GSF || s_bm1397_info->ident == IDENT_GSFM)
 		{
-			s_bm1397_info->nlist = k_new_list("GekkoNonces", sizeof(struct S_COMPAC_NONCE),
+			s_bm1397_info->s_klist_nonce_list = k_new_list("GekkoNonces", sizeof(struct S_COMPAC_NONCE),
 						ALLOC_NLIST_ITEMS, LIMIT_NLIST_ITEMS, true);
-			s_bm1397_info->nstore = k_new_store(s_bm1397_info->nlist);
+			s_bm1397_info->s_klist_nonce_store = k_new_store(s_bm1397_info->s_klist_nonce_list);
 		}
 
 		if (thr_info_create(&(s_bm1397_info->listening_thrd), NULL, compac_listen, (void *)cgpu_bm1397)) {
@@ -2812,7 +2910,7 @@ static bool compac_init(struct thr_info *thr)
 		{
 			gekko_usleep(s_bm1397_info, MS2US(10));
 
-			if (pthread_mutex_init(&s_bm1397_info->nlock, NULL))
+			if (pthread_mutex_init(&s_bm1397_info->nonce_lock, NULL))
 			{
 				applog(LOG_ERR, "%d: %s %d - nonce mutex create failed",
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -2824,7 +2922,7 @@ static bool compac_init(struct thr_info *thr)
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 				return false;
 			}
-			if (thr_info_create(&(s_bm1397_info->nthr), NULL, compac_gsf_nonce_que, (void *)cgpu_bm1397))
+			if (thr_info_create(&(s_bm1397_info->s_thr_info_nonce_thread), NULL, compac_gsf_nonce_que, (void *)cgpu_bm1397))
 			{
 				applog(LOG_ERR, "%d: %s %d - nonce thread create failed",
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -2836,7 +2934,7 @@ static bool compac_init(struct thr_info *thr)
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			}
 
-			pthread_detach(s_bm1397_info->nthr.pth);
+			pthread_detach(s_bm1397_info->s_thr_info_nonce_thread.pth);
 		}
 	}
 
@@ -3137,7 +3235,7 @@ static void compac_shutdown(struct thr_info *thr)
 	pthread_join(s_bm1397_info->listening_thrd.pth, NULL); // Let thread close.
 	pthread_join(s_bm1397_info->work_thrd.pth, NULL); // Let thread close.
 	if (s_bm1397_info->asic_type == BM1397)
-		pthread_join(s_bm1397_info->nthr.pth, NULL); // Let thread close.
+		pthread_join(s_bm1397_info->s_thr_info_nonce_thread.pth, NULL); // Let thread close.
 	PTH(thr) = 0L;
 }
 

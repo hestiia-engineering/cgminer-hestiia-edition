@@ -4407,7 +4407,7 @@ int restart_wait(struct thr_info *thr, unsigned int mstime)
 
 	cgcond_time(&abstime);
 	ms_to_timespec(&tdiff, mstime);
-	timeraddspec(&abstime, &tdiff);
+	timespec_add(&abstime, &tdiff);
 
 	mutex_lock(&restart_lock);
 	if (thr->work_restart)
@@ -6609,7 +6609,7 @@ static struct work *hash_pop(bool blocking)
 			int rc;
 
 			cgcond_time(&abstime);
-			timeraddspec(&abstime, &tdiff);
+			timespec_add(&abstime, &tdiff);
 			pthread_cond_signal(&gws_cond);
 			rc = pthread_cond_timedwait(&getq->cond, stgd_lock, &abstime);
 			/* Check again for !no_work as multiple threads may be
@@ -9018,8 +9018,8 @@ static void adjust_mostdevs(void)
 bool add_cgpu(struct cgpu_info *cgpu)
 {
 	static struct _cgpu_devid_counter *devids = NULL;
-	struct _cgpu_devid_counter *d;
 
+	struct _cgpu_devid_counter *d;
 	HASH_FIND_STR(devids, cgpu->drv->name, d);
 	if (d)
 		cgpu->device_id = ++d->lastid;

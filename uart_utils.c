@@ -83,7 +83,7 @@ int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, 
     // s_device->settings.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // s_device->settings.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    s_device->settings.c_cc[VTIME] = 10;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+    s_device->settings.c_cc[VTIME] = 1;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
     s_device->settings.c_cc[VMIN] = 0;
 
 	if (cfsetospeed(&s_device->settings, speed) < 0)

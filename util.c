@@ -1269,18 +1269,45 @@ void copy_time(struct timeval *dest, const struct timeval *src)
 	cg_memcpy(dest, src, sizeof(struct timeval));
 }
 
+/**
+ * @brief Converts a timespec struct to a timeval struct.
+ * 
+ * This function takes a timespec struct, which has fields for seconds and nanoseconds,
+ * and converts it into a timeval struct, which has fields for seconds and microseconds.
+ *
+ * @param val Pointer to the timeval struct where the result will be stored.
+ * @param spec Pointer to the timespec struct to be converted.
+ */
 void timespec_to_val(struct timeval *val, const struct timespec *spec)
 {
 	val->tv_sec = spec->tv_sec;
 	val->tv_usec = spec->tv_nsec / 1000;
 }
 
+/**
+ * @brief Converts a timeval struct to a timespec struct.
+ * 
+ * This function takes a timeval struct, which has fields for seconds and microseconds,
+ * and converts it into a timespec struct, which has fields for seconds and nanoseconds.
+ *
+ * @param spec Pointer to the timespec struct where the result will be stored.
+ * @param val Pointer to the timeval struct to be converted.
+ */
 void timeval_to_spec(struct timespec *spec, const struct timeval *val)
 {
 	spec->tv_sec = val->tv_sec;
 	spec->tv_nsec = val->tv_usec * 1000;
 }
 
+/**
+ * @brief Converts microseconds to a timeval struct.
+ * 
+ * This function takes an integer representing microseconds and converts it into a timeval struct,
+ * which has fields for seconds and microseconds.
+ *
+ * @param val Pointer to the timeval struct where the result will be stored.
+ * @param us The number of microseconds to be converted.
+ */
 void us_to_timeval(struct timeval *val, int64_t us)
 {
 	lldiv_t tvdiv = lldiv(us, 1000000);
@@ -1289,6 +1316,15 @@ void us_to_timeval(struct timeval *val, int64_t us)
 	val->tv_usec = tvdiv.rem;
 }
 
+/**
+ * @brief Converts microseconds to a timespec struct.
+ * 
+ * This function takes an integer representing microseconds and converts it into a timespec struct,
+ * which has fields for seconds and nanoseconds.
+ *
+ * @param spec Pointer to the timespec struct where the result will be stored.
+ * @param us The number of microseconds to be converted.
+ */
 void us_to_timespec(struct timespec *spec, int64_t us)
 {
 	lldiv_t tvdiv = lldiv(us, 1000000);
@@ -1297,6 +1333,15 @@ void us_to_timespec(struct timespec *spec, int64_t us)
 	spec->tv_nsec = tvdiv.rem * 1000;
 }
 
+/**
+ * @brief Converts milliseconds to a timespec struct.
+ * 
+ * This function takes an integer representing milliseconds and converts it into a timespec struct,
+ * which has fields for seconds and nanoseconds.
+ *
+ * @param spec Pointer to the timespec struct where the result will be stored.
+ * @param ms The number of milliseconds to be converted.
+ */
 void ms_to_timespec(struct timespec *spec, int64_t ms)
 {
 	lldiv_t tvdiv = lldiv(ms, 1000);
@@ -1305,6 +1350,15 @@ void ms_to_timespec(struct timespec *spec, int64_t ms)
 	spec->tv_nsec = tvdiv.rem * 1000000;
 }
 
+/**
+ * @brief Converts milliseconds to a timeval struct.
+ * 
+ * This function takes an integer representing milliseconds and converts it into a timeval struct,
+ * which has fields for seconds and microseconds.
+ *
+ * @param val Pointer to the timeval struct where the result will be stored.
+ * @param ms The number of milliseconds to be converted.
+ */
 void ms_to_timeval(struct timeval *val, int64_t ms)
 {
 	lldiv_t tvdiv = lldiv(ms, 1000);
@@ -1313,6 +1367,15 @@ void ms_to_timeval(struct timeval *val, int64_t ms)
 	val->tv_usec = tvdiv.rem * 1000;
 }
 
+/**
+ * @brief Normalizes a timespec struct so that the nanosecond field is within the range [0, 999999999].
+ * 
+ * This function adjusts the fields of a timespec struct to ensure that the 'tv_nsec' field falls within the
+ * range of [0, 999999999]. If 'tv_nsec' is 1e9 or greater, it decreases 'tv_nsec' by 1e9 and increases 'tv_sec' by 1.
+ * Similarly, if 'tv_nsec' is negative, it increases 'tv_nsec' by 1e9 and decreases 'tv_sec' by 1.
+ *
+ * @param ts Pointer to the timespec struct that needs normalization.
+ */
 static void spec_nscheck(struct timespec *ts)
 {
 	while (ts->tv_nsec >= 1000000000) {
@@ -1325,7 +1388,17 @@ static void spec_nscheck(struct timespec *ts)
 	}
 }
 
-void timeraddspec(struct timespec *a, const struct timespec *b)
+/**
+ * @brief Adds two timespec structs and stores the result in the first parameter.
+ * 
+ * The function adds the 'tv_sec' and 'tv_nsec' fields of the two given timespec structs
+ * and stores the result back in the first parameter. The function also calls `spec_nscheck()`
+ * to correct the nanosecond field and adjust the second field accordingly if needed.
+ *
+ * @param a Pointer to the timespec struct where the result will be stored.
+ * @param b Pointer to the timespec struct that will be added to the first one.
+ */
+void timespec_add(struct timespec *a, const struct timespec *b)
 {
 	a->tv_sec += b->tv_sec;
 	a->tv_nsec += b->tv_nsec;
@@ -1509,7 +1582,7 @@ void cgsleep_ms_r(cgtimer_t *ts_start, int ms)
 	struct timespec ts_end;
 
 	ms_to_timespec(&ts_end, ms);
-	timeraddspec(&ts_end, ts_start);
+	timespec_add(&ts_end, ts_start);
 	nanosleep_abstime(&ts_end);
 }
 
@@ -1518,7 +1591,7 @@ void cgsleep_us_r(cgtimer_t *ts_start, int64_t us)
 	struct timespec ts_end;
 
 	us_to_timespec(&ts_end, us);
-	timeraddspec(&ts_end, ts_start);
+	timespec_add(&ts_end, ts_start);
 	nanosleep_abstime(&ts_end);
 }
 #else /* USE_BITMAIN_SOC */
@@ -1528,7 +1601,7 @@ int cgsleep_ms_r(cgtimer_t *ts_start, int ms)
 	int msdiff;
 
 	ms_to_timespec(&ts_end, ms);
-	timeraddspec(&ts_end, ts_start);
+	timespec_add(&ts_end, ts_start);
 	cgtimer_time(&ts_diff);
 	/* Should be a negative value if we still have to sleep */
 	timersubspec(&ts_diff, &ts_end);
@@ -1546,7 +1619,7 @@ int64_t cgsleep_us_r(cgtimer_t *ts_start, int64_t us)
 	int64_t usdiff;
 
 	us_to_timespec(&ts_end, us);
-	timeraddspec(&ts_end, ts_start);
+	timespec_add(&ts_end, ts_start);
 	cgtimer_time(&ts_diff);
 	usdiff = -timespec_to_us(&ts_diff);
 	if (usdiff <= 0)
@@ -1655,7 +1728,7 @@ static void cgsleep_spec(struct timespec *ts_diff, const struct timespec *ts_sta
 {
 	struct timespec now;
 
-	timeraddspec(ts_diff, ts_start);
+	timespec_add(ts_diff, ts_start);
 	cgtimer_time(&now);
 	timersubspec(ts_diff, &now);
 	if (unlikely(ts_diff->tv_sec < 0))
@@ -3646,7 +3719,7 @@ int _cgsem_mswait(cgsem_t *cgsem, int ms, const char *file, const char *func, co
 
 	cgcond_time(&abs_timeout);
 	ms_to_timespec(&tdiff, ms);
-	timeraddspec(&abs_timeout, &tdiff);
+	timespec_add(&abs_timeout, &tdiff);
 retry:
 	ret = sem_timedwait(cgsem, &abs_timeout);
 

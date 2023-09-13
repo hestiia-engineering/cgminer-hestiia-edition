@@ -42,6 +42,8 @@
 #define MS_MINUTE_30 (MS_MINUTE_1 * 30)
 #define MS_HOUR_1    (MS_MINUTE_1 * 60)
 
+#define NONCE_TIMEOUT_MS 42
+
 enum miner_state {
 	MINER_INIT = 1,
 	MINER_CHIP_COUNT,	// 2
@@ -148,6 +150,16 @@ struct S_COMPAC_NONCE
 	struct timeval s_tv_when;
 };
 
+
+/**
+ * @brief Macro to cast the 'data' field of a K_ITEM structure to a pointer of type 'struct S_COMPAC_NONCE'.
+ *
+ * This macro is used for more convenient and readable access to the underlying nonce data
+ * stored in the 'data' field of a K_ITEM structure.
+ *
+ * @param _item A pointer to a K_ITEM structure.
+ * @return A pointer to the S_COMPAC_NONCE structure stored in the 'data' field of the K_ITEM.
+ */
 #define DATA_NONCE(_item) ((struct S_COMPAC_NONCE *)(_item->data))
 #define ALLOC_NLIST_ITEMS 256
 #define LIMIT_NLIST_ITEMS 0
@@ -285,10 +297,10 @@ struct S_BM1397_INFO {
 	pthread_mutex_t wlock;		// Mutex Serialize Writes
 	pthread_mutex_t rlock;		// Mutex Serialize Reads
 
-	struct thr_info nthr;		// GSF Nonce Thread
-	K_LIST *nlist;			// GSF Nonce list
-	K_LIST *nstore;			// GSF Nonce store
-	pthread_mutex_t nlock;		// GSF lock
+	struct thr_info s_thr_info_nonce_thread;		// GSF Nonce Thread
+	K_LIST *s_klist_nonce_list;			// GSF Nonce list
+	K_LIST *s_klist_nonce_store;			// GSF Nonce store
+	pthread_mutex_t nonce_lock;		// GSF lock
 	pthread_cond_t ncond;		// GSF wait
 	uint64_t ntimeout;		// GSF number of cond timeouts
 	uint64_t ntrigger;		// GSF number of cond tiggered
