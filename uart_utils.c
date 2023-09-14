@@ -83,7 +83,7 @@ int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, 
     // s_device->settings.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // s_device->settings.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    s_device->settings.c_cc[VTIME] = 1;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
+    s_device->settings.c_cc[VTIME] = 1;    // Wait for up to 1 ds (1 deciseconds), returning as soon as any data is received.
     s_device->settings.c_cc[VMIN] = 0;
 
 	if (cfsetospeed(&s_device->settings, speed) < 0)
@@ -110,7 +110,7 @@ int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, 
 		return -1;
 	}
 
-	if (tcflush(fd, TCOFLUSH) < 0)
+	if (tcflush(fd, TCIOFLUSH) < 0)
 	{
 		applog(LOG_ERR, "BM1397: %s() failed to flush device data [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
@@ -150,7 +150,7 @@ void uart_write(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *p
 		applog(LOG_ERR, "BM1397: %s() failed to write to device [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
 	}
-	applog(LOG_ERR,"[UART_WRITE] Sent %d bytes to device %s -> %s", sent, s_device->name, buf);
+	applog(LOG_DEBUG,"[UART_WRITE] Sent %d bytes to device %s -> %s", sent, s_device->name, buf);
 	*processed += sent;
 }
 
@@ -183,7 +183,7 @@ void uart_read(struct S_UART_DEVICE *s_device, char *buf, size_t bufsiz, int *pr
 		applog(LOG_ERR, "BM1397: %s() failed to read from device [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
 	}
-	applog(LOG_ERR,"[UART_READ] Received %d bytes from device %s", readed, s_device->name);
+	applog(LOG_DEBUG,"[UART_READ] Received %d bytes from device %s", readed, s_device->name);
 	*processed += readed;
 }
 
@@ -223,7 +223,7 @@ void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_na
 		else
 		{
 			new_dev = true;
-			applog(LOG_ERR, "New BM1397: %d device on uart %s", i, uart_device_names[i]);
+			applog(LOG_DEBUG, "New BM1397: %d device on uart %s", i, uart_device_names[i]);
 		}
 		if (single && new_dev)
 			break;
@@ -238,27 +238,17 @@ void uart_release(struct S_UART_DEVICE *s_device)
 
 void uart_set_speed(struct S_UART_DEVICE *s_device,uint32_t speed ) {
 
+	char* uart_device_name = s_device->name;
+	uart_release(s_device);
+	uart_init(s_device, uart_device_name, speed);
 
-	applog(LOG_ERR, "BM1397: %s() device [%s] changing baudrate to %d",
+	applog(LOG_DEBUG, "BM1397: %s() device [%s] changing baudrate to %d",
 		   __func__, s_device->name, speed);
 	// check if fd is not initialized
 	if (s_device->fd == -1)
 	{
 		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
 			   __func__, s_device->name);
-	}
-
-	s_device->speed = speed;
-	if (cfsetospeed(&s_device->settings, speed) < 0)
-	{
-		applog(LOG_ERR, "BM1397: %s() failed to set device output speed [%s]: %s",
-			   __func__, s_device->name, strerror(errno));
-	}
-
-	if (cfsetispeed(&s_device->settings, speed) < 0)
-	{
-		applog(LOG_ERR, "BM1397: %s() failed to set device input speed [%s]: %s",
-			   __func__, s_device->name, strerror(errno));
 	}
 }
 

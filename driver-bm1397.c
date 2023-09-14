@@ -1203,8 +1203,8 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
-		//TODO change baudrate here
-		//uart_set_speed(s_uart_device, B1500000);
+		//TODO change baudrate here, don't work for now
+		uart_set_speed(s_uart_device, B1500000);
 		gekko_usleep(s_bm1397_info, MS2US(10));
 
 		calc_gsf_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
@@ -1347,6 +1347,7 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 {
 	
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
+	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 
 	applog(s_bm1397_info->log_wide,"%d: %s %d - Toggling ASIC nRST to reset",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -1354,6 +1355,7 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 	// toggle gpio reset pin to reset ASIC
 	int fd;
 
+	uart_set_speed(s_uart_device, B115200);
 	//usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_RESET, s_bm1397_info->interface, C_RESET);
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_DATA, FTDI_VALUE_DATA_BTS, s_bm1397_info->interface, C_SETDATA);
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD, FTDI_VALUE_BAUD_BTS, (FTDI_INDEX_BAUD_BTS & 0xff00) | s_bm1397_info->interface, C_SETBAUD);
@@ -1796,8 +1798,8 @@ static void *bm1397_mining_thread(void *object)
 	cgtime(&last_plateau_check);
 
 	while (s_bm1397_info->mining_state != MINER_SHUTDOWN)
-		if (old_work)
 	{
+		if (old_work)
 		{
 			mutex_lock(&s_bm1397_info->lock);
 			work_completed(cgpu_bm1397, old_work);
@@ -1805,10 +1807,9 @@ static void *bm1397_mining_thread(void *object)
 			old_work = NULL;
 		}
 
-
-		if (s_bm1397_info->chips == 0
-		||  cgpu_bm1397->deven == DEV_DISABLED
-		||  (s_bm1397_info->mining_state != MINER_MINING && s_bm1397_info->mining_state != MINER_MINING_DUPS))
+		if (s_bm1397_info->chips == 0 ||
+			cgpu_bm1397->deven == DEV_DISABLED ||
+			(s_bm1397_info->mining_state != MINER_MINING && s_bm1397_info->mining_state != MINER_MINING_DUPS))
 		{
 			gekko_usleep(s_bm1397_info, MS2US(10));
 			continue;
@@ -2316,7 +2317,7 @@ static void *bm1397_mining_thread(void *object)
 		cgtime(&now); // set the time we actually sent it
 
 		uart_write(s_uart_device, (char *)s_bm1397_info->task, task_len, &sent_bytes);
-		dumpbuffer(cgpu_bm1397, LOG_WARNING, "TASK.TX", s_bm1397_info->task, task_len);
+		//dumpbuffer(cgpu_bm1397, LOG_WARNING, "TASK.TX", s_bm1397_info->task, task_len);
 		if (sent_bytes != task_len)
 		{
 			if (ms_tdiff(&now, &s_bm1397_info->last_write_error) > (5 * 1000)) {
