@@ -30,7 +30,7 @@
             "options": {
                 "cwd": "${workspaceFolder}/.."
             },
-            "args": ["cgminer-hestiia-edition"]
+            "args": ["cgminer-hestiia-edition", "release"]
         },
         {
             "label": "Build Debug",
@@ -56,7 +56,7 @@
         {
             "label": "Remote ARM debug setup",
             "type": "shell",
-            "dependsOn": ["send armv7" ],
+            "dependsOn": ["Send to target" ],
             "command": "./scripts/remote-debug.sh",
             "args": [ "cgminer-hestiia-edition", "cgminer" ],
             "options": {
