@@ -2522,7 +2522,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 		//TODO : move this into the mining_thread to avoid writing into listing thread
 		if (s_bm1397_info->mining_state == MINER_CHIP_COUNT)
 		{
-			unsigned char chippy[] = {BM1397_CHAIN_READ_REG, 0x05, BM1397_DEFAULT_CHIP_ADDR, BM1397_CHIP_ADDR, 0x0A};
+			unsigned char chippy[] = {BM1397_CHAIN_READ_REG, 0x05, BM1397_DEFAULT_CHIP_ADDR, BM1397_CHIP_ADDR, 0x0A}; //0x55AA520500000A
 			hashboard_send(cgpu_bm1397, chippy, sizeof(chippy), 8 * sizeof(chippy) - 8, "CHIPPY");
 			s_bm1397_info->mining_state = MINER_CHIP_COUNT_XX;
 			// initial config reply allow much longer
@@ -2736,8 +2736,8 @@ static bool compac_init(struct thr_info *thr)
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	float step_freq;
 
-	// all are currently this value
-	s_bm1397_info->freq_mult = 25.0;
+	// all are currently this value after reset
+	s_bm1397_info->freq_mult = 25.0; 
 	// most are this value (6.25)
 	s_bm1397_info->freq_base = s_bm1397_info->freq_mult / 4.0;
 
