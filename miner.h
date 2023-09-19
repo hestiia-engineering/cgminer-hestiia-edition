@@ -7,7 +7,7 @@
 #ifdef __USE_FORTIFY_LEVEL
 #undef __USE_FORTIFY_LEVEL
 #endif
-// ignore n truncation warnings
+//ignore n truncation warnings
 #define __USE_FORTIFY_LEVEL 1
 #if __GNUC__ >= 7
 // ignore the vast number of such non-bug warnings
@@ -148,6 +148,14 @@ static inline int fsync (int fd)
   #include "usbutils.h"
 #endif
 
+#ifdef USE_UART
+	#include "uart_utils.h"
+#endif
+
+#ifdef USE_GPIOD
+	#include <gpiod.h>
+#endif
+
 #if (!defined(WIN32) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))) \
     || (defined(WIN32) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)))
 #ifndef bswap_16
@@ -254,14 +262,14 @@ static inline int fsync (int fd)
  * listed driver. */
 
 #define ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
-	DRIVER_ADD_COMMAND(gekko) \
+	DRIVER_ADD_COMMAND(gekko)\
 	DRIVER_ADD_COMMAND(bm1397) \
 
 #define DRIVER_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
 	ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND)
 
 #define DRIVER_ENUM(X) DRIVER_##X,
-#define DRIVER_PROTOTYPE(X) struct device_drv X##_drv;
+#define DRIVER_PROTOTYPE(X)  struct device_drv X##_drv;
 
 /* Create drv_driver enum from DRIVER_PARSE_COMMANDS macro */
 enum drv_driver {
@@ -433,6 +441,11 @@ struct cgminer_pool_stats {
 	uint64_t net_bytes_received;
 };
 
+
+/**
+ * @brief Represent one device (GPU, FPGA, ASIC, etc.) One device can have multiple chips
+ * 
+ */
 struct cgpu_info {
 	int cgminer_id;
 	struct device_drv *drv;
@@ -729,8 +742,8 @@ extern void api_initlock(void *lock, enum cglock_typ typ, const char *file, cons
 #define mutex_unlock_noyield(_lock) _mutex_unlock_noyield(_lock, __FILE__, __func__, __LINE__)
 #define mutex_unlock(_lock) _mutex_unlock(_lock, __FILE__, __func__, __LINE__)
 #define mutex_trylock(_lock) _mutex_trylock(_lock, __FILE__, __func__, __LINE__)
-#define wr_lock(_lock) _wr_lock(_lock, __FILE__, __func__, __LINE__)
 #define wr_trylock(_lock) _wr_trylock(_lock, __FILE__, __func__, __LINE__)
+#define wr_lock(_lock) _wr_lock(_lock, __FILE__, __func__, __LINE__)
 #define rd_lock(_lock) _rd_lock(_lock, __FILE__, __func__, __LINE__)
 #define rw_unlock(_lock) _rw_unlock(_lock, __FILE__, __func__, __LINE__)
 #define rd_unlock_noyield(_lock) _rd_unlock_noyield(_lock, __FILE__, __func__, __LINE__)

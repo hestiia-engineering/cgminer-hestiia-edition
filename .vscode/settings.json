@@ -1,14 +1,9 @@
 {
     "makefile.makefilePath": "${workspaceFolder}/build_x86_64/Makefile",
-    "files.associations": {
-        "miner.h": "c",
-        "usbutils.h": "c",
-        "klist.h": "c"
-    },
     "makefile.launchConfigurations": [
         {
             "name": "cgminer",
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/build_x86_64/",
             "binaryPath": "${workspaceFolder}/build_x86_64/cgminer",
             "binaryArgs": []
         }

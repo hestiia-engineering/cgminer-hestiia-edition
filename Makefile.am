@@ -9,6 +9,12 @@ else
 USBUTILS_CPPFLAGS =
 endif
 
+if WANT_GPIOD
+GPIOD_CPPFLAGS = `pkg-config libgpiod --libs --cflags`
+else
+GPIOD_CPPFLAGS =
+endif
+
 if STATIC_CURL
 LIBCURL_CPPFLAGS = -DCURL_STATICLIB
 else
@@ -30,9 +36,9 @@ bin_PROGRAMS	= cgminer
 
 cgminer_LDFLAGS	= $(PTHREAD_FLAGS)
 cgminer_LDADD	= $(DLOPEN_FLAGS) @LIBCURL_LIBS@ @JANSSON_LIBS@ @LIBZ_LIBS@ @PTHREAD_LIBS@ \
-		  @NCURSES_LIBS@ @PDCURSES_LIBS@ @WS2_LIBS@ \
+		  @NCURSES_LIBS@ @PDCURSES_LIBS@ @WS2_LIBS@\
 		  @LIBUSB_LIBS@ @MM_LIBS@ @RT_LIBS@ @LIBSYSTEMD_LIBS@ \
-		  @MATH_LIBS@ lib/libgnu.a ccan/libccan.a
+		  @MATH_LIBS@ lib/libgnu.a ccan/libccan.a -lgpiod
 
 cgminer_CPPFLAGS += -I$(top_builddir)/lib -I$(top_srcdir)/lib
 
@@ -57,6 +63,14 @@ if WANT_USBUTILS
 cgminer_SOURCES += usbutils.c usbutils.h
 endif
 
+if WANT_UARTUTILS
+cgminer_SOURCES += uart_utils.c uart_utils.h
+endif
+
+if WANT_GPIOD
+cgminer_SOURCES += gpio_utils.c gpio_utils.h
+endif
+
 if WANT_CRC16
 cgminer_SOURCES += crc16.c crc.h
 endif
@@ -68,5 +82,5 @@ cgminer_SOURCES += driver-gekko.c driver-gekko.h
 endif
 
 if HAS_BM1397
-cgminer_SOURCES += driver-bm1397.c driver-bm1397.h
+cgminer_SOURCES += driver-bm1397.c driver-bm1397.h driver_bm1397_utils.c driver_bm1397_utils.h
 endif

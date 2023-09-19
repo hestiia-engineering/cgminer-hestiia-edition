@@ -134,7 +134,7 @@ void timeval_to_spec(struct timespec *spec, const struct timeval *val);
 void us_to_timeval(struct timeval *val, int64_t us);
 void us_to_timespec(struct timespec *spec, int64_t us);
 void ms_to_timespec(struct timespec *spec, int64_t ms);
-void timeraddspec(struct timespec *a, const struct timespec *b);
+void timespec_add(struct timespec *a, const struct timespec *b);
 char *Strcasestr(char *haystack, const char *needle);
 char *Strsep(char **stringp, const char *delim);
 void cgsleep_ms(int ms);

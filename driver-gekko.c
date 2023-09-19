@@ -2910,7 +2910,7 @@ static void *compac_gsf_nonce_que(void *object)
 		else
 		{
 			cgcond_time(&abstime);
-			timeraddspec(&abstime, &addtime);
+			timespec_add(&abstime, &addtime);
 			mutex_lock(&info->nlock);
 			rc = pthread_cond_timedwait(&info->ncond, &info->nlock, &abstime);
 			mutex_unlock(&info->nlock);

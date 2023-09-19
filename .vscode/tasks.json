@@ -4,17 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "rust: cargo build ARM",
-            "type": "cargo",
-            "command": "build",
-            "args": ["--target=armv7-unknown-linux-gnueabihf"],
-            "problemMatcher": [
-                "$rustc"
-            ],
-            "group": "build",
-        },
-        {
-            "label": "Build Native X86-X64",
+            "label": "Build_Native X86-X64",
             "type": "shell",
             "command": "${workspaceFolder}/scripts/build_native.sh",
             "group": "build",
@@ -23,7 +13,7 @@
             },
         },
         {
-            "label": "Build Yocto",
+            "label": "Build_Yocto",
             "type": "shell",
             "command": "${workspaceFolder}/scripts/build_yocto.sh",
             "group": "build",
@@ -31,42 +21,46 @@
                 "cwd": "${workspaceFolder}"
             },
         },
+        // - Common script 
         {
-            "label": "Build armv7",
+            "label": "Build",
             "type": "shell",
-            "command": "${workspaceFolder}/scripts/build_target.sh",
+            "command": "./scripts/build_target.sh",
             "group": "build",
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}/.."
             },
+            "args": ["cgminer-hestiia-edition"]
         },
         {
-            "label": "Build debug armv7",
+            "label": "Build Debug",
             "type": "shell",
-            "command": "${workspaceFolder}/scripts/build_target_debug.sh",
+            "command": "./scripts/build_target.sh",
             "group": "build",
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}/.."
             },
+            "args": ["cgminer-hestiia-edition", "debug"]
         },
         {
-            "label": "send debug armv7",
+            "label": "Send to target",
             "type": "shell",
-            "command": "${workspaceFolder}/scripts/send_to_target.sh",
-            "args": ["debug"],
-            "group": "none",
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-        },
-        {
-            "label": "send release armv7",
-            "type": "shell",
-            "command": "${workspaceFolder}/scripts/send_to_target.sh",
-            "args": ["release"],
+            "dependsOn": [ "Build Debug"],
+            "command": "./scripts/sync_project.sh",
             "group": "build",
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}/.."
+            },
+            "args": ["cgminer-hestiia-edition"]
+        },
+        {
+            "label": "Remote ARM debug setup",
+            "type": "shell",
+            "dependsOn": ["send armv7" ],
+            "command": "./scripts/remote-debug.sh",
+            "args": [ "cgminer-hestiia-edition", "cgminer" ],
+            "options": {
+                "cwd": "${workspaceFolder}/.."
             },
         },
     ]
