@@ -6,29 +6,24 @@
 #define SRV_TIMEOUT 2
 
 #define MAX_UART_DEVICES 3
-#define UART_DEVICE_ENABLED 1
-
-// transformer ca sous forme d'un tableau de char
-const char *uart1_device_name = "/dev/ttyS1";
-const char *uart2_device_name = "/dev/ttyS2";
-const char *uart3_device_name = "/dev/ttyS3";
+#define UART_DEVICE_ENABLED 2
 
 const char *uart_device_names[MAX_UART_DEVICES] = {
 	"/dev/ttyS1",
 	"/dev/ttyS2",
-	"/dev/ttyS3",
+	"/dev/ttyS4",
 };
 
 const char *gpio_chip[MAX_UART_DEVICES] = {
 	"gpiochip1",
-	"gpiochip2",
+	"gpiochip3",
 	"gpiochip3",
 };
 
 const int gpio_line_offset[MAX_UART_DEVICES] = {
 	28,
-	29,
-	30,
+	19,
+	21,
 };
 
 #define MAX_UART_DEVICES 3
