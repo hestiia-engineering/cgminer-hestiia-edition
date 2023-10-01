@@ -6,7 +6,7 @@
 #define SRV_TIMEOUT 2
 
 #define MAX_UART_DEVICES 3
-#define UART_DEVICE_ENABLED 2
+#define UART_DEVICE_ENABLED 3
 
 const char *uart_device_names[MAX_UART_DEVICES] = {
 	"/dev/ttyS1",
@@ -17,16 +17,14 @@ const char *uart_device_names[MAX_UART_DEVICES] = {
 const char *gpio_chip[MAX_UART_DEVICES] = {
 	"gpiochip1",
 	"gpiochip3",
-	"gpiochip3",
+	"gpiochip1",
 };
 
 const int gpio_line_offset[MAX_UART_DEVICES] = {
 	28,
 	19,
-	21,
+	17,
 };
-
-#define MAX_UART_DEVICES 3
 
 int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, char *uart_device_name, uint32_t speed)
 {
