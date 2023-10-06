@@ -8,10 +8,12 @@
 #define MAX_UART_DEVICES 3
 #define UART_DEVICE_ENABLED 3
 
+
+//config-pin p9.24 uart && config-pin p9.26 uart && config-pin p9.21 uart && config-pin p9.22 uart && config-pin p9.13 uart && config-pin p9.11 uart
 const char *uart_device_names[MAX_UART_DEVICES] = {
-	"/dev/ttyS1",
-	"/dev/ttyS2",
-	"/dev/ttyS4",
+	"/dev/ttyS1",  //P9.26 P9.24  //UART1
+	"/dev/ttyS2",  //P9.22 P9.21  //UART2
+	"/dev/ttyS4",  //P9.11 P9.13  //UART4
 };
 
 const char *gpio_chip[MAX_UART_DEVICES] = {
@@ -20,10 +22,11 @@ const char *gpio_chip[MAX_UART_DEVICES] = {
 	"gpiochip1",
 };
 
+// For nrst
 const int gpio_line_offset[MAX_UART_DEVICES] = {
-	28,
-	19,
-	17,
+	17,  //P9.23 //UART1
+	19,  //P9.27 //UART2
+	28,  //P9.12 //UART4	
 };
 
 int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, char *uart_device_name, uint32_t speed)
