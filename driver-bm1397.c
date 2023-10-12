@@ -24,7 +24,7 @@
 #define USLEEPMIN 200
 #define USLEEPPLUS 50
 
-static bool compac_prepare(struct thr_info *thr);
+static bool hashboard_prepare(struct thr_info *thr);
 static pthread_mutex_t static_lock = PTHREAD_MUTEX_INITIALIZER;
 static bool last_widescreen;
 static uint8_t dev_init_count[0xffff] = {0};
@@ -90,7 +90,7 @@ static struct S_TICKET_INFO s_ticket_info_bm1397[] =
 #define FACTOR_THRESHOLD1 1.5
 #define FACTOR_THRESHOLD2 1.1
 
-static void gekko_usleep(struct S_BM1397_INFO *s_bm1397_info, int sleep_duration_us)
+static void hashboard_usleep(struct S_BM1397_INFO *s_bm1397_info, int sleep_duration_us)
 {
 #if TUNE_CODE
 	struct timeval s_tv_start, s_tv_end;  	//start, end
@@ -283,9 +283,9 @@ static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx,
 	uart_write(s_uart_device, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes);
 
 	if (s_bm1397_info->asic_type == BM1397) {
-		gekko_usleep(s_bm1397_info, s_bm1397_info->usb_prop);
+		hashboard_usleep(s_bm1397_info, s_bm1397_info->usb_prop);
 	} else {
-		gekko_usleep(s_bm1397_info, MS2US(1));
+		hashboard_usleep(s_bm1397_info, MS2US(1));
 	}
 }
 
@@ -309,14 +309,13 @@ static float limit_freq(struct S_BM1397_INFO *s_bm1397_info, float freq, bool ze
 	return freq;
 }
 
-static void ping_freq(struct cgpu_info *cgpu_bm1397, int i32_asic)
+static void ping_freq(struct cgpu_info *cgpu_bm1397, int i32_asic_id)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	bool ping = false;
 
 	if (s_bm1397_info->asic_type == BM1397)
 	{	
-
 		unsigned char pingall[] = {BM1397_CHAIN_READ_REG, 0x05, BM1397_DEFAULT_CHIP_ADDR, BM1397_PLL0, BM1397_CRC5_PLACEHOLDER};
 		hashboard_send(cgpu_bm1397, pingall, sizeof(pingall), 8 * sizeof(pingall) - 8, "pingfreq");
 		ping = true;
@@ -325,11 +324,11 @@ static void ping_freq(struct cgpu_info *cgpu_bm1397, int i32_asic)
 	if (ping)
 	{
 		cgtime(&s_bm1397_info->last_frequency_ping);
-		cgtime(&(s_bm1397_info->asics[i32_asic].s_tv_last_frequency_ping));
+		cgtime(&(s_bm1397_info->asics[i32_asic_id].s_tv_last_frequency_ping));
 	}
 }
 
-static void gsf_calc_nb2c(struct cgpu_info *cgpu_bm1397)
+static void hashboard_calc_nb2c(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	int c, i, j;
@@ -382,11 +381,11 @@ static void gc_wipe_all(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now
 		mutex_unlock(&s_bm1397_info->ghlock);
 }
 
-// update i32_asic->s_bm1397_chip offset as at 'now' and correct values
+// update s_asic_info->s_bm1397_chip offset as at 'now' and correct values
 // info must be locked, wipe creates a new data set
-static void gc_offset(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_INFO *i32_asic, struct timeval *now, bool wipe, bool locked)
+static void gc_offset(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_INFO *s_asic_info, struct timeval *now, bool wipe, bool locked)
 {
-	struct S_BM1397_CHIP *s_bm1397_chip = &(i32_asic->s_bm1397_chip);
+	struct S_BM1397_CHIP *s_bm1397_chip = &(s_asic_info->s_bm1397_chip);
 	time_t delta;
 
 	if (!locked)
@@ -436,11 +435,11 @@ static void gc_offset(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_INFO *i
 		mutex_unlock(&s_bm1397_info->ghlock);
 }
 
-// update info->gh offset as at 'now' and correct values
+// update info->s_gekkohash offset as at 'now' and correct values
 // info must be locked, wipe creates a new data set and also wipes all i32_asic->s_bm1397_chip
 static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, bool wipe, bool locked)
 {
-	struct GEKKOHASH *gh = &(s_bm1397_info->gh);
+	struct GEKKOHASH *s_gekkohash = &(s_bm1397_info->gh);
 	time_t delta;
 	int i;
 
@@ -448,9 +447,9 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 		mutex_lock(&s_bm1397_info->ghlock);
 
 	// first time in, wipe is ignored (it's already all zero)
-	if (gh->zerosec == 0)
+	if (s_gekkohash->zerosec == 0)
 	{
-		gh->zerosec = now->tv_sec;
+		s_gekkohash->zerosec = now->tv_sec;
 		for (i = 0; i < (int)(s_bm1397_info->chips); i++)
 			s_bm1397_info->asics[i].s_bm1397_chip.time_t_zero_sec = now->tv_sec;
 	}
@@ -460,11 +459,11 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 			gc_wipe_all(s_bm1397_info, now, true);
 
 		// wipe or delta != 0
-		if (wipe || gh->zerosec != now->tv_sec)
+		if (wipe || s_gekkohash->zerosec != now->tv_sec)
 		{
 			// clear some/all delta data
 
-			delta = now->tv_sec - gh->zerosec;
+			delta = now->tv_sec - s_gekkohash->zerosec;
 			// if time goes back, also reset everything
 			//  N.B. a forward time jump between 2 and GHLIMsec
 			//  seconds will reduce the hash rate value
@@ -472,16 +471,16 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 			if (wipe || delta < 0 || delta >= GHLIMsec)
 			{
 				// clear out everything
-				gh->zerosec = now->tv_sec;
-				gh->offset = 0;
-				memset(gh->diff, 0, sizeof(gh->diff));
-				memset(gh->firstt, 0, sizeof(gh->firstt));
-				memset(gh->firstd, 0, sizeof(gh->firstd));
-				memset(gh->lastt, 0, sizeof(gh->lastt));
-				memset(gh->t_i32_nb_nonces_ranges, 0, sizeof(gh->t_i32_nb_nonces_ranges));
-				gh->diffsum = 0;
-				gh->i32_nb_nonces = 0;
-				gh->last = 0;
+				s_gekkohash->zerosec = now->tv_sec;
+				s_gekkohash->offset = 0;
+				memset(s_gekkohash->diff, 0, sizeof(s_gekkohash->diff));
+				memset(s_gekkohash->firstt, 0, sizeof(s_gekkohash->firstt));
+				memset(s_gekkohash->firstd, 0, sizeof(s_gekkohash->firstd));
+				memset(s_gekkohash->lastt, 0, sizeof(s_gekkohash->lastt));
+				memset(s_gekkohash->t_i32_nb_nonces_ranges, 0, sizeof(s_gekkohash->t_i32_nb_nonces_ranges));
+				s_gekkohash->diffsum = 0;
+				s_gekkohash->i32_nb_nonces = 0;
+				s_gekkohash->last = 0;
 			}
 			else
 			{
@@ -492,25 +491,25 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 				//  for 3 seconds, it will loop 3 times
 				// there is also a GHLIMsec-1 limit on that
 
-				gh->zerosec = now->tv_sec;
+				s_gekkohash->zerosec = now->tv_sec;
 				// clear out the old values
 				do
 				{
-					gh->offset = GHOFF(gh->offset+1);
+					s_gekkohash->offset = GHOFF(s_gekkohash->offset+1);
 
-					gh->diffsum -= gh->diff[GHOFF(gh->offset)];
-					gh->diff[GHOFF(gh->offset)] = 0;
-					gh->i32_nb_nonces -= gh->t_i32_nb_nonces_ranges[GHOFF(gh->offset)];
-					gh->t_i32_nb_nonces_ranges[GHOFF(gh->offset)] = 0;
+					s_gekkohash->diffsum -= s_gekkohash->diff[GHOFF(s_gekkohash->offset)];
+					s_gekkohash->diff[GHOFF(s_gekkohash->offset)] = 0;
+					s_gekkohash->i32_nb_nonces -= s_gekkohash->t_i32_nb_nonces_ranges[GHOFF(s_gekkohash->offset)];
+					s_gekkohash->t_i32_nb_nonces_ranges[GHOFF(s_gekkohash->offset)] = 0;
 
-					gh->firstt[GHOFF(gh->offset)].tv_sec = 0;
-					gh->firstt[GHOFF(gh->offset)].tv_usec = 0;
-					gh->firstd[GHOFF(gh->offset)] = 0;
-					gh->lastt[GHOFF(gh->offset)].tv_sec = 0;
-					gh->lastt[GHOFF(gh->offset)].tv_usec = 0;
+					s_gekkohash->firstt[GHOFF(s_gekkohash->offset)].tv_sec = 0;
+					s_gekkohash->firstt[GHOFF(s_gekkohash->offset)].tv_usec = 0;
+					s_gekkohash->firstd[GHOFF(s_gekkohash->offset)] = 0;
+					s_gekkohash->lastt[GHOFF(s_gekkohash->offset)].tv_sec = 0;
+					s_gekkohash->lastt[GHOFF(s_gekkohash->offset)].tv_usec = 0;
 
-					if (gh->last < (GHNUM-1))
-						gh->last++;
+					if (s_gekkohash->last < (GHNUM-1))
+						s_gekkohash->last++;
 				}
 				while (--delta > 0);
 			}
@@ -519,8 +518,8 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 
 	// if there's been no nonces up to now, history must already be all zero
 	//  so just remove history
-	if (gh->i32_nb_nonces == 0 && gh->last > 0)
-		gh->last = 0;
+	if (s_gekkohash->i32_nb_nonces == 0 && s_gekkohash->last > 0)
+		s_gekkohash->last = 0;
 	// this also handles the issue of a nonce-less wipe with a high
 	//  now->tv_usec and if the first nonce comes in during the next second.
 	//  without setting 'last=0' the previous empty full second(s) will
@@ -530,35 +529,35 @@ static void gh_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, 
 		mutex_unlock(&s_bm1397_info->ghlock);
 }
 
-// update info->gh with a new nonce as at 'now' (diff=info->difficulty)
+// update info->s_gekkohash with a new nonce as at 'now' (diff=info->difficulty)
 // info must be locked, wipe creates a new data set with the single nonce
-static void add_gekko_nonce(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_INFO *i32_asic, struct timeval *now)
+static void add_gekko_nonce(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_INFO *s_asic_info, struct timeval *now)
 {
-	struct GEKKOHASH *gh = &(s_bm1397_info->gh);
+	struct GEKKOHASH *s_gekkohash = &(s_bm1397_info->gh);
 
 	mutex_lock(&s_bm1397_info->ghlock);
 
 	gh_offset(s_bm1397_info, now, false, true);
 
-	if (gh->diff[gh->offset] == 0)
+	if (s_gekkohash->diff[s_gekkohash->offset] == 0)
 	{
-		gh->firstt[gh->offset].tv_sec = now->tv_sec;
-		gh->firstt[gh->offset].tv_usec = now->tv_usec;
-		gh->firstd[gh->offset] = s_bm1397_info->difficulty;
+		s_gekkohash->firstt[s_gekkohash->offset].tv_sec = now->tv_sec;
+		s_gekkohash->firstt[s_gekkohash->offset].tv_usec = now->tv_usec;
+		s_gekkohash->firstd[s_gekkohash->offset] = s_bm1397_info->difficulty;
 	}
-	gh->lastt[gh->offset].tv_sec = now->tv_sec;
-	gh->lastt[gh->offset].tv_usec = now->tv_usec;
+	s_gekkohash->lastt[s_gekkohash->offset].tv_sec = now->tv_sec;
+	s_gekkohash->lastt[s_gekkohash->offset].tv_usec = now->tv_usec;
 
-	gh->diff[gh->offset] += s_bm1397_info->difficulty;
-	gh->diffsum += s_bm1397_info->difficulty;
-	(gh->t_i32_nb_nonces_ranges[gh->offset])++;
-	(gh->i32_nb_nonces)++;
+	s_gekkohash->diff[s_gekkohash->offset] += s_bm1397_info->difficulty;
+	s_gekkohash->diffsum += s_bm1397_info->difficulty;
+	(s_gekkohash->t_i32_nb_nonces_ranges[s_gekkohash->offset])++;
+	(s_gekkohash->i32_nb_nonces)++;
 
-	if (i32_asic != NULL)
+	if (s_asic_info != NULL)
 	{
-		struct S_BM1397_CHIP *s_bm1397_chip = &(i32_asic->s_bm1397_chip);
+		struct S_BM1397_CHIP *s_bm1397_chip = &(s_asic_info->s_bm1397_chip);
 
-		gc_offset(s_bm1397_info, i32_asic, now, false, true);
+		gc_offset(s_bm1397_info, s_asic_info, now, false, true);
 		(s_bm1397_chip->t_i32_nb_nonces_ranges[s_bm1397_chip->i32_offset])++;
 		(s_bm1397_chip->i32_nb_nonces)++;
 	}
@@ -568,11 +567,11 @@ static void add_gekko_nonce(struct S_BM1397_INFO *s_bm1397_info, struct S_ASIC_I
 
 // calculate MH/s hashrate, info must be locked
 // value is 0.0 if there's no useful data
-// caller check info->gh.last for history size used and info->gh.i32_nb_nonces-1
+// caller check info->s_gekkohash.last for history size used and info->s_gekkohash.i32_nb_nonces-1
 //  for the amount of data used (i.e. accuracy of the hash rate)
 static double gekko_gh_hashrate(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, bool locked)
 {
-	struct GEKKOHASH *gh = &(s_bm1397_info->gh);
+	struct GEKKOHASH *s_gekkohash = &(s_bm1397_info->gh);
 	struct timeval age, end;
 	int zero, last;
 	uint64_t delta;
@@ -584,44 +583,44 @@ static double gekko_gh_hashrate(struct S_BM1397_INFO *s_bm1397_info, struct time
 		mutex_lock(&s_bm1397_info->ghlock);
 
 	// can't be calculated with only one nonce
-	if (gh->diffsum > 0 && gh->i32_nb_nonces > 1)
+	if (s_gekkohash->diffsum > 0 && s_gekkohash->i32_nb_nonces > 1)
 	{
 		gh_offset(s_bm1397_info, now, false, true);
 
-		if (gh->diffsum > 0 && gh->i32_nb_nonces > 1)
+		if (s_gekkohash->diffsum > 0 && s_gekkohash->i32_nb_nonces > 1)
 		{
 			// offset of 'now'
-			zero = gh->offset;
+			zero = s_gekkohash->offset;
 			// offset of oldest nonce
-			last = GHOFF(zero - gh->last);
+			last = GHOFF(zero - s_gekkohash->last);
 
-			if (gh->diff[last] != 0)
+			if (s_gekkohash->diff[last] != 0)
 			{
 				// from the oldest nonce, excluding it's diff
-				delta = gh->firstd[last];
-				age.tv_sec = gh->firstt[last].tv_sec;
-				age.tv_usec = gh->firstt[last].tv_usec;
+				delta = s_gekkohash->firstd[last];
+				age.tv_sec = s_gekkohash->firstt[last].tv_sec;
+				age.tv_usec = s_gekkohash->firstt[last].tv_usec;
 			}
 			else
 			{
 				// if last is empty, use the start time of last
 				delta = 0;
-				age.tv_sec = gh->zerosec - (GHNUM - 1);
+				age.tv_sec = s_gekkohash->zerosec - (GHNUM - 1);
 				age.tv_usec = 0;
 			}
 
 			// up to the time of the newest nonce as long as it
 			//  was curr or prev second, otherwise use now
-			if (gh->diff[zero] != 0)
+			if (s_gekkohash->diff[zero] != 0)
 			{
 				// time of the newest nonce found this second
-				end.tv_sec = gh->lastt[zero].tv_sec;
-				end.tv_usec = gh->lastt[zero].tv_usec;
+				end.tv_sec = s_gekkohash->lastt[zero].tv_sec;
+				end.tv_usec = s_gekkohash->lastt[zero].tv_usec;
 			}
 			else
 			{
 				// unexpected ... no recent nonces ...
-				if (gh->diff[GHOFF(zero-1)] == 0)
+				if (s_gekkohash->diff[GHOFF(zero-1)] == 0)
 				{
 					end.tv_sec = now->tv_sec;
 					end.tv_usec = now->tv_usec;
@@ -629,15 +628,15 @@ static double gekko_gh_hashrate(struct S_BM1397_INFO *s_bm1397_info, struct time
 				else
 				{
 					// time of the newest nonce found this second-1
-					end.tv_sec = gh->lastt[GHOFF(zero-1)].tv_sec;
-					end.tv_usec = gh->lastt[GHOFF(zero-1)].tv_usec;
+					end.tv_sec = s_gekkohash->lastt[GHOFF(zero-1)].tv_sec;
+					end.tv_usec = s_gekkohash->lastt[GHOFF(zero-1)].tv_usec;
 				}
 			}
 
 			old = tdiff(&end, &age);
 			if (old > 0.0)
 			{
-				ghr = (double)(gh->diffsum - delta)
+				ghr = (double)(s_gekkohash->diffsum - delta)
 					* (pow(2.0, 32.0) / old) / 1.0e6;
 			}
 		}
@@ -651,7 +650,7 @@ static double gekko_gh_hashrate(struct S_BM1397_INFO *s_bm1397_info, struct time
 
 static void job_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, bool wipe, bool locked)
 {
-	struct GEKKOJOB *job = &(s_bm1397_info->job);
+	struct GEKKOJOB *s_gekkojob = &(s_bm1397_info->job);
 	time_t delta;
 	int jobnow;
 
@@ -661,35 +660,35 @@ static void job_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now,
 		mutex_lock(&s_bm1397_info->joblock);
 
 	// first time in, wipe is ignored (it's already all zero)
-	if (job->zeromin == 0)
-		job->zeromin = jobnow;
+	if (s_gekkojob->zeromin == 0)
+		s_gekkojob->zeromin = jobnow;
 	else
 	{
 		// wipe or delta != 0
-		if (wipe || job->zeromin != jobnow)
+		if (wipe || s_gekkojob->zeromin != jobnow)
 		{
 			// clear some/all delta data
 
-			delta = jobnow - job->zeromin;
+			delta = jobnow - s_gekkojob->zeromin;
 			// if time goes back, also reset everything
 			//  N.B. a forward time jump between 2 and JOBLIMn
-			//  seconds will reduce the job rate value
+			//  seconds will reduce the s_gekkojob rate value
 			//  but JOBLIMn or more will reset the whole buffer
 			if (wipe || delta < 0 || delta >= JOBLIMn)
 			{
 				// clear out everything
-				job->zeromin = jobnow;
-				job->lastjob.tv_sec = 0;
-				job->lastjob.tv_usec = 0;
-				job->offset = 0;
-				memset(job->firstj, 0, sizeof(job->firstj));
-				memset(job->lastj, 0, sizeof(job->lastj));
-				memset(job->jobnum, 0, sizeof(job->jobnum));
-				memset(job->avgms, 0, sizeof(job->avgms));
-				memset(job->minms, 0, sizeof(job->minms));
-				memset(job->maxms, 0, sizeof(job->maxms));
-				job->jobsnum = 0;
-				job->last = 0;
+				s_gekkojob->zeromin = jobnow;
+				s_gekkojob->lastjob.tv_sec = 0;
+				s_gekkojob->lastjob.tv_usec = 0;
+				s_gekkojob->offset = 0;
+				memset(s_gekkojob->firstj, 0, sizeof(s_gekkojob->firstj));
+				memset(s_gekkojob->lastj, 0, sizeof(s_gekkojob->lastj));
+				memset(s_gekkojob->jobnum, 0, sizeof(s_gekkojob->jobnum));
+				memset(s_gekkojob->avgms, 0, sizeof(s_gekkojob->avgms));
+				memset(s_gekkojob->minms, 0, sizeof(s_gekkojob->minms));
+				memset(s_gekkojob->maxms, 0, sizeof(s_gekkojob->maxms));
+				s_gekkojob->jobsnum = 0;
+				s_gekkojob->last = 0;
 			}
 			else
 			{
@@ -700,25 +699,25 @@ static void job_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now,
 				//  for 2 minutes, it will loop 2 times
 				// there is also a JOBLIMn-1 limit on that
 
-				job->zeromin = jobnow;
+				s_gekkojob->zeromin = jobnow;
 				// clear out the old values
 				do
 				{
-					job->offset = JOBOFF(job->offset+1);
+					s_gekkojob->offset = JOBOFF(s_gekkojob->offset+1);
 
-					job->firstj[JOBOFF(job->offset)].tv_sec = 0;
-					job->firstj[JOBOFF(job->offset)].tv_usec = 0;
-					job->lastj[JOBOFF(job->offset)].tv_sec = 0;
-					job->lastj[JOBOFF(job->offset)].tv_usec = 0;
+					s_gekkojob->firstj[JOBOFF(s_gekkojob->offset)].tv_sec = 0;
+					s_gekkojob->firstj[JOBOFF(s_gekkojob->offset)].tv_usec = 0;
+					s_gekkojob->lastj[JOBOFF(s_gekkojob->offset)].tv_sec = 0;
+					s_gekkojob->lastj[JOBOFF(s_gekkojob->offset)].tv_usec = 0;
 
-					job->jobsnum -= job->jobnum[JOBOFF(job->offset)];
-					job->jobnum[JOBOFF(job->offset)] = 0;
-					job->avgms[JOBOFF(job->offset)] = 0;
-					job->minms[JOBOFF(job->offset)] = 0;
-					job->maxms[JOBOFF(job->offset)] = 0;
+					s_gekkojob->jobsnum -= s_gekkojob->jobnum[JOBOFF(s_gekkojob->offset)];
+					s_gekkojob->jobnum[JOBOFF(s_gekkojob->offset)] = 0;
+					s_gekkojob->avgms[JOBOFF(s_gekkojob->offset)] = 0;
+					s_gekkojob->minms[JOBOFF(s_gekkojob->offset)] = 0;
+					s_gekkojob->maxms[JOBOFF(s_gekkojob->offset)] = 0;
 
-					if (job->last < (JOBMIN-1))
-						job->last++;
+					if (s_gekkojob->last < (JOBMIN-1))
+						s_gekkojob->last++;
 				}
 				while (--delta > 0);
 			}
@@ -727,22 +726,22 @@ static void job_offset(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now,
 
 	// if there's been no jobs up to now, history must already be all zero
 	//  so just remove history
-	if (job->jobsnum == 0 && job->last > 0)
-		job->last = 0;
-	// this also handles the issue of a job-less wipe with a high
-	//  now->tv_usec and if the first job comes in during the next minute.
+	if (s_gekkojob->jobsnum == 0 && s_gekkojob->last > 0)
+		s_gekkojob->last = 0;
+	// this also handles the issue of a s_gekkojob-less wipe with a high
+	//  now->tv_usec and if the first s_gekkojob comes in during the next minute.
 	//  without setting 'last=0' the previous empty full minute will
-	//   always be included in the elapsed time used to calc the job rate
+	//   always be included in the elapsed time used to calc the s_gekkojob rate
 
 	if (!locked)
 		mutex_unlock(&s_bm1397_info->joblock);
 }
 
-// update info->job with a job as at 'now'
+// update info->s_gekkojob with a s_gekkojob as at 'now'
 // info must be locked, wipe creates a new empty data set
 static void add_gekko_job(struct S_BM1397_INFO *s_bm1397_info, struct timeval *now, bool wipe)
 {
-	struct GEKKOJOB *job = &(s_bm1397_info->job);
+	struct GEKKOJOB *s_gekkojob = &(s_bm1397_info->job);
 	bool firstjob;
 	double avg;
 	double ms;
@@ -753,17 +752,17 @@ static void add_gekko_job(struct S_BM1397_INFO *s_bm1397_info, struct timeval *n
 
 	if (!wipe)
 	{
-		if (job->jobnum[job->offset] == 0)
+		if (s_gekkojob->jobnum[s_gekkojob->offset] == 0)
 		{
-			job->firstj[job->offset].tv_sec = now->tv_sec;
-			job->firstj[job->offset].tv_usec = now->tv_usec;
+			s_gekkojob->firstj[s_gekkojob->offset].tv_sec = now->tv_sec;
+			s_gekkojob->firstj[s_gekkojob->offset].tv_usec = now->tv_usec;
 			firstjob = true;
 		}
 		else
 			firstjob = false;
 
-		job->lastj[job->offset].tv_sec = now->tv_sec;
-		job->lastj[job->offset].tv_usec = now->tv_usec;
+		s_gekkojob->lastj[s_gekkojob->offset].tv_sec = now->tv_sec;
+		s_gekkojob->lastj[s_gekkojob->offset].tv_usec = now->tv_usec;
 
 		// first job time in each offset gets ignored
 		// this is only necessary for the very first job,
@@ -777,33 +776,33 @@ static void add_gekko_job(struct S_BM1397_INFO *s_bm1397_info, struct timeval *n
 		}
 		else
 		{
-			avg = job->avgms[job->offset] * (double)(job->jobnum[job->offset] - 1);
+			avg = s_gekkojob->avgms[s_gekkojob->offset] * (double)(s_gekkojob->jobnum[s_gekkojob->offset] - 1);
 
-			ms = (double)(now->tv_sec - job->lastjob.tv_sec) * 1000.0;
-			ms += (double)(now->tv_usec - job->lastjob.tv_usec) / 1000.0;
+			ms = (double)(now->tv_sec - s_gekkojob->lastjob.tv_sec) * 1000.0;
+			ms += (double)(now->tv_usec - s_gekkojob->lastjob.tv_usec) / 1000.0;
 
 			// jobnum[] must be > 0
-			job->avgms[job->offset] = (avg + ms) / (double)(job->jobnum[job->offset]);
+			s_gekkojob->avgms[s_gekkojob->offset] = (avg + ms) / (double)(s_gekkojob->jobnum[s_gekkojob->offset]);
 
-			if (job->minms[job->offset] == 0.0)
+			if (s_gekkojob->minms[s_gekkojob->offset] == 0.0)
 			{
-				job->minms[job->offset] = ms;
-				job->maxms[job->offset] = ms;
+				s_gekkojob->minms[s_gekkojob->offset] = ms;
+				s_gekkojob->maxms[s_gekkojob->offset] = ms;
 			}
 			else
 			{
-				if (ms < job->minms[job->offset])
-					job->minms[job->offset] = ms;
-				if (job->maxms[job->offset] < ms)
-					job->maxms[job->offset] = ms;
+				if (ms < s_gekkojob->minms[s_gekkojob->offset])
+					s_gekkojob->minms[s_gekkojob->offset] = ms;
+				if (s_gekkojob->maxms[s_gekkojob->offset] < ms)
+					s_gekkojob->maxms[s_gekkojob->offset] = ms;
 			}
 		}
 
-		(job->jobnum[job->offset])++;
-		(job->jobsnum)++;
+		(s_gekkojob->jobnum[s_gekkojob->offset])++;
+		(s_gekkojob->jobsnum)++;
 
-		job->lastjob.tv_sec = now->tv_sec;
-		job->lastjob.tv_usec = now->tv_usec;
+		s_gekkojob->lastjob.tv_sec = now->tv_sec;
+		s_gekkojob->lastjob.tv_usec = now->tv_usec;
 	}
 
 	mutex_unlock(&s_bm1397_info->joblock);
@@ -815,14 +814,14 @@ static void add_gekko_job(struct S_BM1397_INFO *s_bm1397_info, struct timeval *n
 static void set_ticket(struct cgpu_info *cgpu_bm1397, float diff, bool force, bool locked)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	struct timeval now;
+	struct timeval tv_now;
 	bool got = false;
-	uint32_t udiff, new_diff = 0, new_mask = 0, cc;
+	uint32_t udiff, new_diff = 0, new_mask = 0, u32_chips_x_cores;
 	int i;
 
 	if (diff == 0.0)
 	{
-		// above max will get the highest valid for cc
+		// above max will get the highest valid for u32_chips_x_cores
 		diff = 128;
 	}
 
@@ -831,11 +830,11 @@ static void set_ticket(struct cgpu_info *cgpu_bm1397, float diff, bool force, bo
 
 	// closest uint diff equal or below
 	udiff = (uint32_t)floor(diff);
-	cc = s_bm1397_info->chips * s_bm1397_info->cores;
+	u32_chips_x_cores = s_bm1397_info->chips * s_bm1397_info->cores;
 
 	for (i = 0; s_ticket_info_bm1397[i].u32_work_diff > 0; i++)
 	{
-		if (udiff >= s_ticket_info_bm1397[i].u32_work_diff && cc > s_ticket_info_bm1397[i].u32_chips_x_cores_limit)
+		if (udiff >= s_ticket_info_bm1397[i].u32_work_diff && u32_chips_x_cores > s_ticket_info_bm1397[i].u32_chips_x_cores_limit)
 		{
 			// if ticket is already the same
 			if (!force && s_bm1397_info->difficulty == s_ticket_info_bm1397[i].u32_work_diff)
@@ -875,18 +874,18 @@ static void set_ticket(struct cgpu_info *cgpu_bm1397, float diff, bool force, bo
 
 	hashboard_send(cgpu_bm1397, ticket, sizeof(ticket), 8 * sizeof(ticket) - 8, "ticket");
 	if (!force)
-		gekko_usleep(s_bm1397_info, MS2US(10));
+		hashboard_usleep(s_bm1397_info, MS2US(10));
 	else
-		gekko_usleep(s_bm1397_info, MS2US(20));
+		hashboard_usleep(s_bm1397_info, MS2US(20));
 
 	applog(LOG_ERR, "%d: %s %d - set ticket to 0x%02x/%u work %u/%.1f",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 		new_mask, new_diff, udiff, diff);
 
 	// wipe info->gh/i32_asic->s_bm1397_chip
-	cgtime(&now);
-	gh_offset(s_bm1397_info, &now, true, false);
-	job_offset(s_bm1397_info, &now, true, false);
+	cgtime(&tv_now);
+	gh_offset(s_bm1397_info, &tv_now, true, false);
+	job_offset(s_bm1397_info, &tv_now, true, false);
 	// reset P:
 	s_bm1397_info->frequency_computed = 0;
 }
@@ -915,7 +914,7 @@ static double noncepercent(struct S_BM1397_INFO *s_bm1397_info, int chip, struct
 }
 
 // GSF/GSFM any chip count
-static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int chip)
+static void calc_bm1397_freq(struct cgpu_info *cgpu_bm1397, float frequency, int chip)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	char chipn[8];
@@ -1026,12 +1025,12 @@ static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int ch
 
 		for (i = 0; i < 2; i++)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			hashboard_send(cgpu_bm1397, prefreqall, sizeof(prefreqall), 8 * sizeof(prefreqall) - 8, "prefreq");
 		}
 		for (i = 0; i < 2; i++)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			hashboard_send(cgpu_bm1397, freqbufall, sizeof(freqbufall), 8 * sizeof(freqbufall) - 8, "freq");
 		}
 
@@ -1049,12 +1048,12 @@ static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int ch
 
 		for (i = 0; i < 2; i++)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			hashboard_send(cgpu_bm1397, prefreqch, sizeof(prefreqch), 8 * sizeof(prefreqch) - 8, "prefreq");
 		}
 		for (i = 0; i < 2; i++)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			hashboard_send(cgpu_bm1397, freqbufch, sizeof(freqbufch), 8 * sizeof(freqbufch) - 8, "freq");
 		}
 
@@ -1065,7 +1064,7 @@ static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int ch
 	if (doall)
 		s_bm1397_info->frequency = frequency;
 
-	gekko_usleep(s_bm1397_info, MS2US(10));
+	hashboard_usleep(s_bm1397_info, MS2US(10));
 
 	if (doall)
 		snprintf(chipn, sizeof(chipn), "all");
@@ -1079,11 +1078,11 @@ static void calc_gsf_freq(struct cgpu_info *cgpu_bm1397, float frequency, int ch
 	ping_freq(cgpu_bm1397, 0);
 }
 
-static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
+static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
-	unsigned int i, j;
+	unsigned int i=0;
 
 	applog(LOG_ERR,"%d: %s %d - sending chain inactive for %d chip(s)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, s_bm1397_info->chips);
@@ -1095,7 +1094,7 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		for (i = 0; i < 3; i++)
 		{
 			hashboard_send(cgpu_bm1397, chainin, sizeof(chainin), 8 * sizeof(chainin) - 8, "chin");
-			gekko_usleep(s_bm1397_info, MS2US(100));
+			hashboard_usleep(s_bm1397_info, MS2US(100));
 		}
 
 		unsigned char chippy[] = {BM1397_SET_CHIP_ADDR, 0x05, BM1397_DEFAULT_CHIP_ADDR, 0x00, BM1397_CRC5_PLACEHOLDER};
@@ -1103,7 +1102,7 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		{
 			chippy[2] = CHIPPY1397(s_bm1397_info, i);
 			hashboard_send(cgpu_bm1397, chippy, sizeof(chippy), 8 * sizeof(chippy) - 8, "chippy");
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 		}
 
 		unsigned char init1[] = {BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_CLOCK_ORDER_CONTROL0, 0x00, 0x00, 0x00, 0x00, BM1397_CRC5_PLACEHOLDER};
@@ -1112,13 +1111,13 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		unsigned char init4[] = {BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_CORE_REGISTER_CONTROL, 0x80, 0x00, 0x80, 0x74, BM1397_CRC5_PLACEHOLDER};
 
 		hashboard_send(cgpu_bm1397, init1, sizeof(init1), 8 * sizeof(init1) - 8, "init1");
-		gekko_usleep(s_bm1397_info, MS2US(10));
+		hashboard_usleep(s_bm1397_info, MS2US(10));
 		hashboard_send(cgpu_bm1397, init2, sizeof(init2), 8 * sizeof(init2) - 8, "init2");
-		gekko_usleep(s_bm1397_info, MS2US(100));
+		hashboard_usleep(s_bm1397_info, MS2US(100));
 		hashboard_send(cgpu_bm1397, init3, sizeof(init3), 8 * sizeof(init3) - 8, "init3");
-		gekko_usleep(s_bm1397_info, MS2US(50));
+		hashboard_usleep(s_bm1397_info, MS2US(50));
 		hashboard_send(cgpu_bm1397, init4, sizeof(init4), 8 * sizeof(init4) - 8, "init4");
-		gekko_usleep(s_bm1397_info, MS2US(100));
+		hashboard_usleep(s_bm1397_info, MS2US(100));
 
 		// set ticket based on chips, pool will be above this anyway
 		set_ticket(cgpu_bm1397, 0.0, true, false);
@@ -1164,13 +1163,13 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		 * 		 */
 		unsigned char init6[] = {BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_FAST_UART_CONFIG, 0x06, 0x00, 0x00, 0x0F, BM1397_CRC5_PLACEHOLDER};
 
-		for (j = 0; j < 2; j++)
+		for (i = 0; i < 2; i++)
 		{
 			hashboard_send(cgpu_bm1397, init5, sizeof(init5), 8 * sizeof(init5) - 8, "init5");
-			gekko_usleep(s_bm1397_info, MS2US(50));
+			hashboard_usleep(s_bm1397_info, MS2US(50));
 		}
 		hashboard_send(cgpu_bm1397, init6, sizeof(init6), 8 * sizeof(init6) - 8, "init6");
-		gekko_usleep(s_bm1397_info, MS2US(100));
+		hashboard_usleep(s_bm1397_info, MS2US(100));
 
 		/**
 		 * @brief Configure the UART to use fCLKI (25MH) as clock source 
@@ -1201,15 +1200,15 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		applog(LOG_ERR, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, baudrate[5], baudrate[6], s_bm1397_info->bauddiv + 1);
 		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");
-		gekko_usleep(s_bm1397_info, MS2US(10));
+		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 		//TODO change baudrate here, don't work for now
 		uart_set_speed(s_uart_device, B1500000);
-		gekko_usleep(s_bm1397_info, MS2US(10));
+		hashboard_usleep(s_bm1397_info, MS2US(10));
 
-		calc_gsf_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
+		calc_bm1397_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
 		
-		gekko_usleep(s_bm1397_info, MS2US(20));
+		hashboard_usleep(s_bm1397_info, MS2US(20));
 	}
 
 	if (s_bm1397_info->mining_state == MINER_CHIP_COUNT_OK) {
@@ -1221,11 +1220,11 @@ static void compac_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 	}
 }
 
-static void compac_update_rates(struct cgpu_info *cgpu_bm1397)
+static void hashboard_update_rates(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	struct S_ASIC_INFO *i32_asic;
-	float average_frequency = 0, est;
+	struct S_ASIC_INFO *s_asic_info;
+	float f_average_frequency = 0, est;
 	unsigned int i;
 
 	cgtime(&(s_bm1397_info->last_update_rates));
@@ -1241,19 +1240,19 @@ static void compac_update_rates(struct cgpu_info *cgpu_bm1397)
 
 	s_bm1397_info->frequency_asic = 0;
 	for (i = 0; i < s_bm1397_info->chips; i++) {
-		i32_asic = &s_bm1397_info->asics[i];
-		i32_asic->u64_hashrate = i32_asic->f_frequency * s_bm1397_info->cores * 1000000 * s_bm1397_info->hr_scale;
-		i32_asic->f_fullscan_duration_ms = 1000.0 * s_bm1397_info->hr_scale * 0xffffffffull / i32_asic->u64_hashrate;
-		i32_asic->u32_fullscan_duration = 1000.0 * s_bm1397_info->hr_scale * 1000.0 * 0xffffffffull / i32_asic->u64_hashrate;
-		average_frequency += i32_asic->f_frequency;
-		s_bm1397_info->frequency_asic = (i32_asic->f_frequency > s_bm1397_info->frequency_asic ) ? i32_asic->f_frequency : s_bm1397_info->frequency_asic;
+		s_asic_info = &s_bm1397_info->asics[i];
+		s_asic_info->u64_hashrate = s_asic_info->f_frequency * s_bm1397_info->cores * 1000000 * s_bm1397_info->hr_scale;
+		s_asic_info->f_fullscan_duration_ms = 1000.0 * s_bm1397_info->hr_scale * 0xffffffffull / s_asic_info->u64_hashrate;
+		s_asic_info->u32_fullscan_duration = 1000.0 * s_bm1397_info->hr_scale * 1000.0 * 0xffffffffull / s_asic_info->u64_hashrate;
+		f_average_frequency += s_asic_info->f_frequency;
+		s_bm1397_info->frequency_asic = (s_asic_info->f_frequency > s_bm1397_info->frequency_asic ) ? s_asic_info->f_frequency : s_bm1397_info->frequency_asic;
 	}
 
-	average_frequency = average_frequency / s_bm1397_info->chips;
-	if (average_frequency != s_bm1397_info->frequency) {
+	f_average_frequency = f_average_frequency / s_bm1397_info->chips;
+	if (f_average_frequency != s_bm1397_info->frequency) {
 		applog(LOG_ERR,"%d: %s %d - frequency updated %.2fMHz -> %.2fMHz",
-			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, s_bm1397_info->frequency, average_frequency);
-		s_bm1397_info->frequency = average_frequency;
+			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, s_bm1397_info->frequency, f_average_frequency);
+		s_bm1397_info->frequency = f_average_frequency;
 		s_bm1397_info->wu_max = 0;
 	}
 
@@ -1302,13 +1301,13 @@ static void compac_update_rates(struct cgpu_info *cgpu_bm1397)
 		s_bm1397_info->fullscan_ms, s_bm1397_info->tune_up, s_bm1397_info->tune_down);
 }
 
-static void compac_set_frequency(struct cgpu_info *cgpu_bm1397, float frequency)
+static void hashboard_set_frequency(struct cgpu_info *cgpu_bm1397, float frequency)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	struct timeval now;
 
-	calc_gsf_freq(cgpu_bm1397, frequency, -1);
-	compac_update_rates(cgpu_bm1397);
+	calc_bm1397_freq(cgpu_bm1397, frequency, -1);
+	hashboard_update_rates(cgpu_bm1397);
 
 	// wipe info->gh/i32_asic->s_bm1397_chip
 	cgtime(&now);
@@ -1317,7 +1316,7 @@ static void compac_set_frequency(struct cgpu_info *cgpu_bm1397, float frequency)
 	s_bm1397_info->frequency_computed = 0;
 }
 
-static void compac_update_work(struct cgpu_info *cgpu_bm1397)
+static void hashboard_update_work(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	int i;
@@ -1337,13 +1336,13 @@ static void bm1397_flush_buffer(struct cgpu_info *cgpu_bm1397)
 	
 }
 
-static void compac_flush_work(struct cgpu_info *cgpu_bm1397)
+static void hashboard_flush_work(struct cgpu_info *cgpu_bm1397)
 {
 	bm1397_flush_buffer(cgpu_bm1397);
-	compac_update_work(cgpu_bm1397);
+	hashboard_update_work(cgpu_bm1397);
 }
 
-static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
+static void hashboard_toggle_reset(struct cgpu_info *cgpu_bm1397)
 {
 	
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -1367,24 +1366,24 @@ static void compac_toggle_reset(struct cgpu_info *cgpu_bm1397)
 	gpio_set(s_bm1397_info->gpio_device, 1);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF2; // low byte: bitmask - 1111 0010 - CB1(HI)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
-	gekko_usleep(s_bm1397_info, MS2US(30));
+	hashboard_usleep(s_bm1397_info, MS2US(30));
 
 	gpio_set(s_bm1397_info->gpio_device, 0);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF0; // low byte: bitmask - 1111 0000 - CB1(LO)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
-	gekko_usleep(s_bm1397_info, MS2US(1000));
+	hashboard_usleep(s_bm1397_info, MS2US(1000));
 
 	gpio_set(s_bm1397_info->gpio_device, 1);
 	// usb_val = (FTDI_BITMODE_CBUS << 8) | 0xF2; // low byte: bitmask - 1111 0010 - CB1(HI)
 	// usb_transfer(cgpu_bm1397, FTDI_TYPE_OUT, FTDI_REQUEST_BITMODE, usb_val, s_bm1397_info->interface, C_SETMODEM);
-	gekko_usleep(s_bm1397_info, MS2US(200));
+	hashboard_usleep(s_bm1397_info, MS2US(200));
 
 	cgtime(&s_bm1397_info->last_reset);
 }
 
 
 //@MP : Specific to BM1397 chipe as the funct return if no this asic_type (gsf ?)
-static void compac_gsf_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
+static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	unsigned char *tu8_rx_buffer = DATA_NONCE(item)->tu8_rx_buffer;
@@ -1741,7 +1740,7 @@ static void change_freq_any(struct cgpu_info *cgpu_bm1397, float new_freq)
 		if (s_bm1397_info->asic_type == BM1397)
 		{
 			if (i == 0)
-				compac_set_frequency(cgpu_bm1397, new_freq);
+				hashboard_set_frequency(cgpu_bm1397, new_freq);
 		}
 	}
 
@@ -1811,7 +1810,7 @@ static void *bm1397_mining_thread(void *object)
 			cgpu_bm1397->deven == DEV_DISABLED ||
 			(s_bm1397_info->mining_state != MINER_MINING && s_bm1397_info->mining_state != MINER_MINING_DUPS))
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			continue;
 		}
 
@@ -1833,7 +1832,7 @@ static void *bm1397_mining_thread(void *object)
 					use_us = 1000;
 				if (use_us >= USLEEPMIN)
 				{
-					gekko_usleep(s_bm1397_info, use_us);
+					hashboard_usleep(s_bm1397_info, use_us);
 					continue;
 				}
 			}
@@ -2173,7 +2172,7 @@ static void *bm1397_mining_thread(void *object)
 		// don't bother with work if it's not mining
 		if (!has_freq)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			continue;
 		}
 
@@ -2193,7 +2192,7 @@ static void *bm1397_mining_thread(void *object)
 				// allow time for get_queued() + a bit
 				left_us -= (s_bm1397_info->work_usec_avg + USLEEPPLUS);
 				if (left_us >= USLEEPMIN)
-					gekko_usleep(s_bm1397_info, left_us);
+					hashboard_usleep(s_bm1397_info, left_us);
 			}
 			else
 			{
@@ -2287,7 +2286,7 @@ static void *bm1397_mining_thread(void *object)
 				// get Dups instead of sending busy work
 
 				// sleep 1ms then fast loop back
-				gekko_usleep(s_bm1397_info, MS2US(1));
+				hashboard_usleep(s_bm1397_info, MS2US(1));
 				last_was_busy = true;
 				continue;
 			}
@@ -2336,9 +2335,9 @@ static void *bm1397_mining_thread(void *object)
 
 		//let the usb frame propagate
 		if (s_bm1397_info->asic_type == BM1397 && s_bm1397_info->usb_prop != 1000)
-			gekko_usleep(s_bm1397_info, s_bm1397_info->usb_prop);
+			hashboard_usleep(s_bm1397_info, s_bm1397_info->usb_prop);
 		else
-			gekko_usleep(s_bm1397_info, MS2US(1));
+			hashboard_usleep(s_bm1397_info, MS2US(1));
 
 		s_bm1397_info->task_ms = (s_bm1397_info->task_ms * 9 + ms_tdiff(&now, &s_bm1397_info->last_task)) / 10;
 
@@ -2355,7 +2354,7 @@ static void *bm1397_mining_thread(void *object)
 		if (work && job_added
 		&&  ms_tdiff(&now, &s_bm1397_info->last_update_rates) > MS_SECOND_5)
 		{
-			compac_update_rates(cgpu_bm1397);
+			hashboard_update_rates(cgpu_bm1397);
 		}
 	}
 	return NULL;
@@ -2381,7 +2380,7 @@ static void *bm1397_mining_thread(void *object)
  * @param object A pointer to a `cgpu_info` struct containing device-specific information.
  * @return NULL since the function is intended to be used as a thread worker.
  */
-static void *compac_gsf_nonce_que(void *object)
+static void *hashboard_1397_nonce_que(void *object)
 {
     // Cast the object to its specific type
     struct cgpu_info *cgpu_bm1397 = (struct cgpu_info *)object;
@@ -2408,7 +2407,7 @@ static void *compac_gsf_nonce_que(void *object)
         // If a nonce item exists, process it
         if (ps_kitem_item)
         {
-            compac_gsf_nonce(cgpu_bm1397, ps_kitem_item);
+            hashboard_bm1397_nonce(cgpu_bm1397, ps_kitem_item);
 
             // Re-insert the processed item back into the nonce list
             K_WLOCK(s_bm1397_info->s_klist_nonce_list);
@@ -2503,7 +2502,7 @@ static bool bm1397_set_frequency_reply(struct S_BM1397_INFO *s_bm1397_info, unsi
  * @todo Add details about threading concerns, if applicable.
  * @todo Describe the expected behavior if the function encounters an error condition.
  */
-static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO *s_bm1397_info)
+static void *hasboard_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO *s_bm1397_info)
 {
 	unsigned char tu8_rx_buffer[BUFFER_MAX];
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
@@ -2528,12 +2527,8 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 			// initial config reply allow much longer
 			i32_timeout = 1000;
 		}
-
-		if (s_bm1397_info->mining_state != MINER_RESET)
-		{
-			uart_read(s_uart_device, ((char *)tu8_rx_buffer)+i32_read_offset, BUFFER_MAX-i32_read_offset, &i32_bytes_readed);
-			i32_read_offset += i32_bytes_readed;
-		}
+		uart_read(s_uart_device, ((char *)tu8_rx_buffer)+i32_read_offset, BUFFER_MAX-i32_read_offset, &i32_bytes_readed);
+		i32_read_offset += i32_bytes_readed;
 
 
 		//Store current time
@@ -2614,7 +2609,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 					cgtime(&s_asic_info->s_tv_last_nonce);
 					s_bm1397_info->chips++;
 					s_bm1397_info->mining_state = MINER_CHIP_COUNT_XX;
-					compac_update_rates(cgpu_bm1397);
+					hashboard_update_rates(cgpu_bm1397);
 					b_chipped = true;
 				}
 				// ignore all data until we get at least 1 chip reply
@@ -2666,12 +2661,12 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 					DATA_NONCE(s_kitem_item)->s_tv_when.tv_sec = tv_now.tv_sec;
 					DATA_NONCE(s_kitem_item)->s_tv_when.tv_usec = tv_now.tv_usec;
 
-					//Store this item in the list for beeing processed in nonce_thread cf compac_gsf_nonce_que
+					//Store this item in the list for beeing processed in nonce_thread cf hashboard_1397_nonce_que
 					K_WLOCK(s_bm1397_info->s_klist_nonce_list);
 					k_add_tail(s_bm1397_info->s_klist_nonce_store, s_kitem_item);  
 					K_WUNLOCK(s_bm1397_info->s_klist_nonce_list);
 
-					// Wake up the nonce_thread cf compac_gsf_nonce_que
+					// Wake up the nonce_thread cf hashboard_1397_nonce_que
 					mutex_lock(&s_bm1397_info->nonce_lock);
 					pthread_cond_signal(&s_bm1397_info->ncond);  
 					mutex_unlock(&s_bm1397_info->nonce_lock);
@@ -2694,7 +2689,7 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 			if (s_bm1397_info->mining_state == MINER_CHIP_COUNT_XX)
 			{
 				if (s_bm1397_info->chips < s_bm1397_info->expected_chips)
-					s_bm1397_info->mining_state = MINER_RESET;
+					s_bm1397_info->mining_state = MINER_CHIP_COUNT_XX;
 				else
 				{
 					if (s_bm1397_info->chips > 0)
@@ -2715,20 +2710,20 @@ static void *compac_listen2(struct cgpu_info *cgpu_bm1397, struct S_BM1397_INFO 
 }
 // Wrapper for handling incoming data from the miner.
 // @Todo to document
-// @mp : renvoie vers compac_listen2 dans le cas d'un BM1397
-static void *compac_listen(void *object)
+// @mp : renvoie vers hasboard_listen2 dans le cas d'un BM1397
+static void *hashboard_listen(void *object)
 {
 	struct cgpu_info *cgpu_bm1397 = (struct cgpu_info *)object;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	if (s_bm1397_info->asic_type == BM1397) {
-		return compac_listen2(cgpu_bm1397, s_bm1397_info);
+		return hasboard_listen2(cgpu_bm1397, s_bm1397_info);
 	} else {
 		return NULL;
 	}
 }
 
 
-static bool compac_init(struct thr_info *thr)
+static bool hashboard_init(struct thr_info *thr)
 {
 	int i;
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
@@ -2888,7 +2883,7 @@ static bool compac_init(struct thr_info *thr)
 			s_bm1397_info->s_klist_nonce_store = k_new_store(s_bm1397_info->s_klist_nonce_list);
 		}
 
-		if (thr_info_create(&(s_bm1397_info->listening_thrd), NULL, compac_listen, (void *)cgpu_bm1397)) {
+		if (thr_info_create(&(s_bm1397_info->listening_thrd), NULL, hashboard_listen, (void *)cgpu_bm1397)) {
 			applog(LOG_ERR, "%d: %s %d - read thread create failed", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			return false;
 		} else {
@@ -2896,7 +2891,7 @@ static bool compac_init(struct thr_info *thr)
 		}
 		pthread_detach(s_bm1397_info->listening_thrd.pth);
 
-		gekko_usleep(s_bm1397_info, MS2US(100));
+		hashboard_usleep(s_bm1397_info, MS2US(100));
 
 		if (thr_info_create(&(s_bm1397_info->work_thrd), NULL, bm1397_mining_thread, (void *)cgpu_bm1397)) {
 			applog(LOG_ERR, "%d: %s %d - write thread create failed", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -2909,7 +2904,7 @@ static bool compac_init(struct thr_info *thr)
 
 		if (s_bm1397_info->ident == IDENT_GSF || s_bm1397_info->ident == IDENT_GSFM)
 		{
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 
 			if (pthread_mutex_init(&s_bm1397_info->nonce_lock, NULL))
 			{
@@ -2923,7 +2918,7 @@ static bool compac_init(struct thr_info *thr)
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 				return false;
 			}
-			if (thr_info_create(&(s_bm1397_info->s_thr_info_nonce_thread), NULL, compac_gsf_nonce_que, (void *)cgpu_bm1397))
+			if (thr_info_create(&(s_bm1397_info->s_thr_info_nonce_thread), NULL, hashboard_1397_nonce_que, (void *)cgpu_bm1397))
 			{
 				applog(LOG_ERR, "%d: %s %d - nonce thread create failed",
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
@@ -2942,7 +2937,7 @@ static bool compac_init(struct thr_info *thr)
 	return true;
 }
 
-static int64_t compac_scanwork(struct thr_info *thr)
+static int64_t hashboard_scanwork(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -2954,14 +2949,14 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	uint64_t xhashes = 0;
 
 	if (s_bm1397_info->chips == 0)
-		gekko_usleep(s_bm1397_info, MS2US(10));
+		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 	selective_yield();
 	cgtime(&now);
 
 	switch (s_bm1397_info->mining_state) {
 		case MINER_INIT:
-			gekko_usleep(s_bm1397_info, MS2US(50));
+			hashboard_usleep(s_bm1397_info, MS2US(50));
 			bm1397_flush_buffer(cgpu_bm1397);
 			s_bm1397_info->chips = 0;
 			s_bm1397_info->ramping = 0;
@@ -2978,12 +2973,12 @@ static int64_t compac_scanwork(struct thr_info *thr)
 				s_bm1397_info->mining_state = MINER_RESET;
 				return 0;
 			}
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			break;
 		case MINER_CHIP_COUNT_OK:
-			gekko_usleep(s_bm1397_info, MS2US(50));
-			//compac_set_frequency(bm1397, info->frequency_start);
-			compac_send_chain_inactive(cgpu_bm1397);
+			hashboard_usleep(s_bm1397_info, MS2US(50));
+			//hashboard_set_frequency(bm1397, info->frequency_start);
+			hashboard_send_chain_inactive(cgpu_bm1397);
 
 			if (s_bm1397_info->asic_type == BM1397) {
 				s_bm1397_info->mining_state = MINER_OPEN_CORE_OK;
@@ -3008,13 +3003,13 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			s_bm1397_info->ramping += s_bm1397_info->add_job_id;
 			s_bm1397_info->task_ms = (s_bm1397_info->task_ms * 9 + ms_tdiff(&now, &s_bm1397_info->last_task)) / 10;
 			cgtime(&s_bm1397_info->last_task);
-			gekko_usleep(s_bm1397_info, MS2US(10));
+			hashboard_usleep(s_bm1397_info, MS2US(10));
 			return 0;
 			break;
 		case MINER_OPEN_CORE_OK:
 			applog(LOG_ERR, "%d: %s %d - start work", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			if (s_bm1397_info->asic_type == BM1397)
-				gsf_calc_nb2c(cgpu_bm1397);
+				hashboard_calc_nb2c(cgpu_bm1397);
 			cgtime(&s_bm1397_info->start_time);
 			cgtime(&s_bm1397_info->monitor_time);
 			cgtime(&s_bm1397_info->last_frequency_adjust);
@@ -3023,7 +3018,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 			cgtime(&s_bm1397_info->last_micro_ping);
 			cgtime(&s_bm1397_info->s_tv_last_nonce);
 			bm1397_flush_buffer(cgpu_bm1397);
-			compac_update_rates(cgpu_bm1397);
+			hashboard_update_rates(cgpu_bm1397);
 			s_bm1397_info->update_work = 1;
 			s_bm1397_info->mining_state = MINER_MINING;
 			return 0;
@@ -3031,11 +3026,11 @@ static int64_t compac_scanwork(struct thr_info *thr)
 		case MINER_MINING:
 			break;
 		case MINER_RESET:
-			compac_flush_work(cgpu_bm1397);
+			hashboard_flush_work(cgpu_bm1397);
 			if (s_bm1397_info->asic_type == BM1397) {
-				compac_toggle_reset(cgpu_bm1397);
+				hashboard_toggle_reset(cgpu_bm1397);
 			}
-			compac_prepare(thr);
+			hashboard_prepare(thr);
 
 			s_bm1397_info->fail_count++;
 			s_bm1397_info->dupsreset = 0;
@@ -3066,7 +3061,7 @@ static int64_t compac_scanwork(struct thr_info *thr)
 	s_bm1397_info->xhashes = 0;
 	mutex_unlock(&s_bm1397_info->lock);
 
-	gekko_usleep(s_bm1397_info, MS2US(1));
+	hashboard_usleep(s_bm1397_info, MS2US(1));
 	return xhashes * 0xffffffffull;
 	//return hashes;
 }
@@ -3136,7 +3131,7 @@ static struct cgpu_info *bm1397_detect_one(const char *uart_device_names, const 
 		case IDENT_GSFM:
 			s_bm1397_info->asic_type = BM1397;
 			// at least 1
-			s_bm1397_info->expected_chips = 1;
+			s_bm1397_info->expected_chips = 12;
 			break;
 		default:
 			quit(1, "%d: %s bm1397_detect_one() invalid %s ident=%d",
@@ -3155,7 +3150,7 @@ static struct cgpu_info *bm1397_detect_one(const char *uart_device_names, const 
 			// ignore lowboost
 			s_bm1397_info->midstates = 4;
 			s_bm1397_info->can_boost = true;
-			compac_toggle_reset(cgpu_bm1397);
+			hashboard_toggle_reset(cgpu_bm1397);
 			break;
 		default:
 			break;
@@ -3187,7 +3182,7 @@ static void bm1397_detect(bool __maybe_unused hotplug)
 	uart_detect(bm1397_detect_one);
 }
 
-static bool compac_prepare(struct thr_info *thr)
+static bool hashboard_prepare(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -3224,14 +3219,14 @@ static bool compac_prepare(struct thr_info *thr)
 }
 
 
-static void compac_shutdown(struct thr_info *thr)
+static void hashboard_shutdown(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	applog(LOG_ERR, "%d: %s %d - shutting down", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 
-	calc_gsf_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
-	compac_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
+	calc_bm1397_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
+	hashboard_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
 	s_bm1397_info->mining_state = MINER_SHUTDOWN;
 	pthread_join(s_bm1397_info->listening_thrd.pth, NULL); // Let thread close.
 	pthread_join(s_bm1397_info->work_thrd.pth, NULL); // Let thread close.
@@ -3244,7 +3239,7 @@ static void compac_shutdown(struct thr_info *thr)
 /**  Api related stuff  **/
 /** **************************************************** **/
 
-static struct api_data *bm1397_api_stats(struct cgpu_info *cgpu_bm1397)
+static struct api_data *hasboard_api_stats(struct cgpu_info *cgpu_bm1397)
 
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
@@ -3743,7 +3738,7 @@ static char *bm1397_api_set(struct cgpu_info *cgpu_bm1397, char *option, char *s
 		freq = limit_freq(s_bm1397_info, atof(fpos+1), true);
 		freq = FREQ_BASE(freq);
 
-		calc_gsf_freq(cgpu_bm1397, freq, chip);
+		calc_bm1397_freq(cgpu_bm1397, freq, chip);
 
 		return NULL;
 	}
@@ -3788,7 +3783,7 @@ static char *bm1397_api_set(struct cgpu_info *cgpu_bm1397, char *option, char *s
 		}
 
 		s_bm1397_info->wait_factor0 = freqbounding(atof(setting), 0.01, 2.0);
-		compac_update_rates(cgpu_bm1397);
+		hashboard_update_rates(cgpu_bm1397);
 
 		return NULL;
 	}
@@ -3817,7 +3812,7 @@ static char *bm1397_api_set(struct cgpu_info *cgpu_bm1397, char *option, char *s
 		}
 
 		s_bm1397_info->ghrequire = freqbounding(atof(setting), 0.0, 0.8);
-		compac_update_rates(cgpu_bm1397);
+		hashboard_update_rates(cgpu_bm1397);
 
 		return NULL;
 	}
@@ -3831,18 +3826,18 @@ static char *bm1397_api_set(struct cgpu_info *cgpu_bm1397, char *option, char *s
 /** **************************************************** **/
 struct device_drv bm1397_drv = {
 	.drv_id              = DRIVER_bm1397,
-	.dname               = "bm1397",
-	.name                = "H97",
+	.dname               = "Hashboard",
+	.name                = "HHB", //Hestiion Hashboard
 	.hash_work           = hash_queued_work,  // defined in cgminer.c
-	.get_api_stats       = bm1397_api_stats,
+	.get_api_stats       = hasboard_api_stats,
 	.get_statline_before = bm1397_statline,
 	.set_device	     	 = bm1397_api_set,
 	.drv_detect          = bm1397_detect,
-	.scanwork            = compac_scanwork,
-	.flush_work          = compac_flush_work,
-	.update_work         = compac_update_work,
-	.thread_prepare      = compac_prepare,
-	.thread_init         = compac_init,
-	.thread_shutdown     = compac_shutdown,
+	.scanwork            = hashboard_scanwork,
+	.flush_work          = hashboard_flush_work,
+	.update_work         = hashboard_update_work,
+	.thread_prepare      = hashboard_prepare,
+	.thread_init         = hashboard_init,
+	.thread_shutdown     = hashboard_shutdown,
 };
   

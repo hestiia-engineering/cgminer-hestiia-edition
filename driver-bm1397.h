@@ -423,7 +423,7 @@ struct S_BM1397_INFO {
 	struct timeval last_write_error;        // Last usb write error message
 	struct timeval last_wu_increase;        // Last wu_max change
 	struct timeval last_pool_lost;          // Last time we lost pool
-	struct timeval last_update_rates;       // Last time we called compac_update_rates()
+	struct timeval last_update_rates;       // Last time we called hashboard_update_rates()
 
 	struct timeval first_task;
 	uint64_t tasks;
