@@ -132,6 +132,24 @@ fi
 
 # Drivers that are designed to be run on dedicated hardware should set standalone to yes
 # All drivers should prepend an x to the drivercount
+djansson="yes"
+case $target in
+	*-*-freebsd*)
+		JANSSON_LIBS="-ljansson"
+		JANSSON_CFLAGS=""
+		AC_DEFINE(HAVE_JANSSON, 1, [Define if you have jansson >= 2.6])
+		;;
+	*)
+		PKG_CHECK_MODULES(JANSSON, jansson >= 2.6, [AC_DEFINE(HAVE_JANSSON, 1, [Define if you have jansson >= 2.6])], [djansson="no"])
+		;;
+esac
+
+if test "x$djansson" = xno; then
+	AC_CONFIG_SUBDIRS([compat/jansson-2.9])
+	JANSSON_LIBS="compat/jansson-2.9/src/.libs/libjansson.a"
+fi
+
+AM_CONDITIONAL([WANT_STATIC_JANSSON], [test x$djansson = xno])
 
 standalone="no"
 drivercount=""
@@ -204,9 +222,14 @@ fi
 
 if test x$bm1397 != xno; then
 	want_gpiod=true
-	want_uart=true
 else
 	want_gpiod=false
+fi
+
+if test x$bm1397 != xno; then
+	want_uart=true
+else
+	want_uart=false
 fi
 
 AM_CONDITIONAL([WANT_USBUTILS], [test x$want_usbutils != xfalse])
@@ -250,24 +273,7 @@ else
 	LIBGPIOD_LIBS=""
 fi
 
-djansson="yes"
-case $target in
-	*-*-freebsd*)
-		JANSSON_LIBS="-ljansson"
-		JANSSON_CFLAGS=""
-		AC_DEFINE(HAVE_JANSSON, 1, [Define if you have jansson >= 2.6])
-		;;
-	*)
-		PKG_CHECK_MODULES(JANSSON, jansson >= 2.6, [AC_DEFINE(HAVE_JANSSON, 1, [Define if you have jansson >= 2.6])], [djansson="no"])
-		;;
-esac
 
-if test "x$djansson" = xno; then
-	AC_CONFIG_SUBDIRS([compat/jansson-2.9])
-	JANSSON_LIBS="compat/jansson-2.9/src/.libs/libjansson.a"
-fi
-
-AM_CONDITIONAL([WANT_STATIC_JANSSON], [test x$djansson = xno])
 
 AC_CHECK_HEADERS([uthash.h])
 

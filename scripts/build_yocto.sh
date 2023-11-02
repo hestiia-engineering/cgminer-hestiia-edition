@@ -1,4 +1,4 @@
-SDK_PATH=/home/pixma/yocto/sdk
+SDK_PATH=/home/pixma/yocto/
 
 if [ -f "$SDK_PATH/environment-setup-cortexa8hf-neon-poky-linux-gnueabi" ]; then
     . $SDK_PATH/environment-setup-cortexa8hf-neon-poky-linux-gnueabi 
