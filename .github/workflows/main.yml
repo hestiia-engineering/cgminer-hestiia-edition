@@ -1,6 +1,8 @@
 name: Build release
 
-on: [release]
+on: 
+  release:
+    types: [created]
     
 jobs:      
   build:
@@ -53,4 +55,4 @@ jobs:
         run: |
           RELEASE_TAG=$GITHUB_REF_NAME
           # Upload artifacts, potentially overwriting existing files (--clobber)
-          gh release upload $RELEASE_TAG $ARTEFACT_LIST --clobber
+          gh release upload $RELEASE_TAG ./build_yocto/cgminer --clobber
