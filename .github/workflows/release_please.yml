@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release-please
+        uses: google-github-actions/release-please-action@v3
+        id: release
+        with:
+          release-type: simple
+          package-name: cgminer-hestiia-edition
+          default-branch: dev
+          # we have to pass a custon token
+          # otherwise releases won't trigger further github actions
+          token: ${{ secrets.GIT_TOKEN }}
+      
+      # Create a PR on master when a release is created
+
+      - name: Checkout released version of repo
+        uses: actions/checkout@v3
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Open PR on master for released version
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+        run: gh pr create -B master -H dev --title "Update master to $RELEASE_TAG" --body 'Automated PR from Github Actions'
