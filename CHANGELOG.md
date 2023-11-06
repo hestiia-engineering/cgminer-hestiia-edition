@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.1](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.1.0...v5.1.1) (2023-11-06)
+
+
+### Bug Fixes
+
+* uploading asset after build ([7f58bf5](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/7f58bf5c0255824f9859d0e44129c7c4d79faad7))
+
 ## [5.1.0](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.0.4...v5.1.0) (2023-11-06)
 
 
