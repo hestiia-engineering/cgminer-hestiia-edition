@@ -1,12 +1,12 @@
 name: Build release
 
-on:
+on: 
   release:
     types: [created]
     
 jobs:      
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     
     steps:
       - name: Check out repository code
@@ -22,16 +22,18 @@ jobs:
 
       - name: Download SDK
         run: |
-          curl -H 'Authorization: token ${{ secrets.YOUR_TOKEN }}' -L https://github.com/hestiia-engineering/yocto-cooker-myeko/releases/download/v1.9.0/poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.12.sh
+            curl -L -H "Accept: application/octet-stream"   -H "Authorization: Bearer ${{ secrets.GIT_TOKEN }}"   -H "X-GitHub-Api-Version: 2022-11-28"   https://api.github.com/repos/hestiia-engineering/yocto-cooker-myeko/releases/assets/133811840 -o sdk.sh
       - name: Extract Yocto SDK
         run: |
-            ./poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.12.sh -d ./sdk -y
+            chmod +x sdk.sh
+            ./sdk.sh -d ./sdk -y -D
       - name: Source Yocto SDK Environment
         run: |
           source sdk/environment-setup-cortexa8hf-neon-poky-linux-gnueabi
           
       - name: Build the project
         run: |
+          source ./sdk/environment-setup-cortexa8hf-neon-poky-linux-gnueabi
           mkdir -p ./build_yocto && cd build_yocto
           ../autogen.sh
           CFLAGS="-O2 -Wall -fcommon" ../configure ${CONFIGURE_FLAGS} --enable-bm1397
@@ -53,6 +55,4 @@ jobs:
         run: |
           RELEASE_TAG=$GITHUB_REF_NAME
           # Upload artifacts, potentially overwriting existing files (--clobber)
-          echo $ARTEFACT_LIST
-          ls -lah $ARTEFACT_LIST
-          gh release upload $RELEASE_TAG $ARTEFACT_LIST --clobber
+          gh release upload $RELEASE_TAG ./build_yocto/cgminer --clobber
