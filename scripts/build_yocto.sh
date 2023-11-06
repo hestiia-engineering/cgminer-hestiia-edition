@@ -9,5 +9,5 @@ fi
 
 mkdir -p ./build_yocto && cd build_yocto
 ../autogen.sh
-CFLAGS="-O2 -Wall -fcommon" ../configure ${CONFIGURE_FLAGS} --enable-gekko
+CFLAGS="-O2 -Wall -fcommon" ../configure ${CONFIGURE_FLAGS} --enable-bm1397
 make

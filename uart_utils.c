@@ -17,9 +17,9 @@ const char *uart_device_names[MAX_UART_DEVICES] = {
 };
 
 const char *gpio_chip[MAX_UART_DEVICES] = {
-	"gpiochip1",
-	"gpiochip3",
-	"gpiochip1",
+	"gpiochip0",
+	"gpiochip2",
+	"gpiochip0",
 };
 
 // For nrst
