@@ -1,0 +1,58 @@
+name: Build release
+
+on:
+  release:
+    types: [created]
+    
+jobs:      
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        
+      - name: Update apt and install dependencies
+        run: |
+          sudo apt-get update
+          # deps for yocto build
+          sudo apt-get -y install apt-utils gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev zstd liblz4-tool
+          # deps for menuconfig commands
+          sudo apt-get -y install tmux libncurses-dev bison flex sudo
+
+      - name: Download SDK
+        run: |
+          curl -H 'Authorization: token ${{ secrets.YOUR_TOKEN }}' -L https://github.com/hestiia-engineering/yocto-cooker-myeko/releases/download/v1.9.0/poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.12.sh
+      - name: Extract Yocto SDK
+        run: |
+            ./poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.12.sh -d ./sdk -y
+      - name: Source Yocto SDK Environment
+        run: |
+          source sdk/environment-setup-cortexa8hf-neon-poky-linux-gnueabi
+          
+      - name: Build the project
+        run: |
+          mkdir -p ./build_yocto && cd build_yocto
+          ../autogen.sh
+          CFLAGS="-O2 -Wall -fcommon" ../configure ${CONFIGURE_FLAGS} --enable-bm1397
+          make
+          
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v3.1.3
+        with:
+          # Artifact name
+          name: cgminer
+          # A file, directory or wildcard pattern that describes what to upload
+          path: ./build_yocto/cgminer
+          # The desired behavior if no files are found using the provided path.    
+          if-no-files-found: error
+          
+      - name: Upload all build artifacts as release files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+        run: |
+          RELEASE_TAG=$GITHUB_REF_NAME
+          # Upload artifacts, potentially overwriting existing files (--clobber)
+          echo $ARTEFACT_LIST
+          ls -lah $ARTEFACT_LIST
+          gh release upload $RELEASE_TAG $ARTEFACT_LIST --clobber
