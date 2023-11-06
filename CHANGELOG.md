@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.2](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.1.1...v5.1.2) (2023-11-06)
+
+
+### Bug Fixes
+
+* update version in configure.ac ([ceb829e](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/ceb829ee1b74c914d57afddf483a4a60dc2c82fb))
+
 ## [5.1.1](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.1.0...v5.1.1) (2023-11-06)
 
 
