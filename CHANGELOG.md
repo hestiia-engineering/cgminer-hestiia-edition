@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.2.0](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.1.2...v5.2.0) (2023-12-11)
+
+
+### Features
+
+* Set Baudrate to 3Mb/s for all uarts ([d74f721](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/d74f7219330cc03bdfe38bc395909416a8259c0a))
+
 ## [5.1.2](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.1.1...v5.1.2) (2023-11-06)
 
 

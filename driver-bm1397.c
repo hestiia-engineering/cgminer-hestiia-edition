@@ -1194,8 +1194,8 @@ static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		 * [3-2] 00 -> unused
 		 * [1-0] 01 -> Hashrate TWS
 		 */
-		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x61, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
-		s_bm1397_info->bauddiv = 1; // 1.5M  // bauddiv is BT8D value
+		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x60, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
+		s_bm1397_info->bauddiv = 0; // 3Mbt  // bauddiv is BT8D value
 
 		applog(LOG_ERR, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, baudrate[5], baudrate[6], s_bm1397_info->bauddiv + 1);
@@ -1203,7 +1203,7 @@ static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 		//TODO change baudrate here, don't work for now
-		uart_set_speed(s_uart_device, B1500000);
+		uart_set_speed(s_uart_device, B3000000);
 		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 		calc_bm1397_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
@@ -1417,6 +1417,8 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 	else
 		asic_id = floor((double)(tu8_rx_buffer[4]) / ((double)0x100 / (double)(s_bm1397_info->chips)));
 
+	applog(LOG_ERR, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x by asic_id %d",
+		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id, tu8_rx_buffer[4], asic_id);
 	if (asic_id >= (int)(s_bm1397_info->chips))
         {
 		applog(LOG_ERR, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x invalid asic_id (0..%d)",
@@ -1424,9 +1426,9 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 			tu8_rx_buffer[4], (int)(s_bm1397_info->chips)-1);
 		asic_id = (s_bm1397_info->chips - 1);
         }
-	struct S_ASIC_INFO *i32_asic = &s_bm1397_info->asics[asic_id];
+	struct S_ASIC_INFO *s_asic_info = &s_bm1397_info->asics[asic_id];
 
-	if (nonce == i32_asic->u32_last_found_nonce)
+	if (nonce == s_asic_info->u32_last_found_nonce)
 	{
 		applog(LOG_ERR, "%d: %s %d - Duplicate Nonce : %08x @ %02x [%02x %02x %02x %02x %02x %02x %02x]",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id,
@@ -1436,8 +1438,8 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 		s_bm1397_info->dups++;
 		s_bm1397_info->dupsall++;
 		s_bm1397_info->dupsreset++;
-		i32_asic->u32_duplicate_nonce_countr++;
-		i32_asic->u32_total_duplicate_nonce_counter++;
+		s_asic_info->u32_duplicate_nonce_countr++;
+		s_asic_info->u32_total_duplicate_nonce_counter++;
 		cgtime(&s_bm1397_info->last_dup_time);
 		if (s_bm1397_info->dups == 1)
 			s_bm1397_info->mining_state = MINER_MINING_DUPS;
@@ -1448,7 +1450,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 
 	mutex_lock(&s_bm1397_info->lock);
 	s_bm1397_info->prev_nonce = nonce;
-	i32_asic->u32_last_found_nonce = nonce;
+	s_asic_info->u32_last_found_nonce = nonce;
 
 	applog(LOG_ERR, "%d: %s %d - Device reported nonce: %08x @ %02x (%d)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id, s_bm1397_info->tracker);
@@ -1638,10 +1640,10 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 		mutex_lock(&s_bm1397_info->lock);
 
 		cgtime(&s_bm1397_info->s_tv_last_nonce);
-		cgtime(&i32_asic->s_tv_last_nonce);
+		cgtime(&s_asic_info->s_tv_last_nonce);
 
 		// count of valid nonces
-		i32_asic->i32_nonces++; // info only
+		s_asic_info->i32_nonces++; // info only
 
 		if (midnum > 0)
 		{
@@ -1656,11 +1658,11 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 		s_bm1397_info->accepted++;
 		s_bm1397_info->failing = false;
 		s_bm1397_info->dups = 0;
-		i32_asic->u32_duplicate_nonce_countr = 0;
+		s_asic_info->u32_duplicate_nonce_countr = 0;
 		mutex_unlock(&s_bm1397_info->lock);
 
 		if (s_bm1397_info->nb2c_setup)
-			add_gekko_nonce(s_bm1397_info, i32_asic, &(DATA_NONCE(item)->s_tv_when));
+			add_gekko_nonce(s_bm1397_info, s_asic_info, &(DATA_NONCE(item)->s_tv_when));
 		else
 			add_gekko_nonce(s_bm1397_info, NULL, &(DATA_NONCE(item)->s_tv_when));
 	}
