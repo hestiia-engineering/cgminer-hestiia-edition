@@ -37,7 +37,7 @@ jobs:
       - name: Build the project
         run: |
           source ./sdk/environment-setup-cortexa8hf-neon-poky-linux-gnueabi
-          ./update_configure_ac.sh
+          ./update_configure_ac_version.sh
           mkdir -p ./build_yocto && cd build_yocto
           ../autogen.sh
           CFLAGS="-O2 -Wall -fcommon" ../configure ${CONFIGURE_FLAGS} --enable-bm1397
