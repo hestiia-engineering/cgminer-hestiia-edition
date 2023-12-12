@@ -19,7 +19,7 @@ bool opt_debug = false;
 bool opt_log_output = false;
 
 /* per default priorities higher than LOG_NOTICE are logged */
-int opt_log_level = LOG_NOTICE;
+int opt_log_level = LOG_ERR;
 
 static void my_log_curses(int prio, const char *datetime, const char *str, bool force)
 {
