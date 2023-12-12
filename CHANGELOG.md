@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.0](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.2.1...v5.3.0) (2023-12-12)
+
+
+### Features
+
+* reduce logging output, revert baudrate to 1500Kbs ([7b24717](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/7b24717afe9482db6f4b479f3e93c73e7bbc5f84))
+
 ## [5.2.1](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.2.0...v5.2.1) (2023-12-11)
 
 
