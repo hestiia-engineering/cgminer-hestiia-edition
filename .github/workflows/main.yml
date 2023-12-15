@@ -59,4 +59,4 @@ jobs:
         run: |
           RELEASE_TAG=$GITHUB_REF_NAME
           # Upload artifacts, potentially overwriting existing files (--clobber)
-          gh release upload $RELEASE_TAG ./build_yocto/cgminer#cgminer_$RELEASE_TAG_armv7_yocto --clobber
+          gh release upload $RELEASE_TAG ./build_yocto/cgminer#cgminer_armv7_yocto --clobber
