@@ -277,7 +277,7 @@ static void hashboard_send(struct cgpu_info *cgpu_bm1397, unsigned char *req_tx,
 
 	s_bm1397_info->cmd[bytes_buffer_lenght-1] |= bmcrc(req_tx, crc_bits);
 
-	int log_level = (bytes_buffer_lenght < s_bm1397_info->task_len) ? LOG_ERR : LOG_ERR;
+	int log_level = (bytes_buffer_lenght < s_bm1397_info->task_len) ? LOG_ERR : LOG_INFO;
 
 	dumpbuffer(cgpu_bm1397, log_level, "TX", s_bm1397_info->cmd, bytes_buffer_lenght);
 	uart_write(s_uart_device, (char *)(s_bm1397_info->cmd), bytes_buffer_lenght, &read_bytes);
@@ -878,7 +878,7 @@ static void set_ticket(struct cgpu_info *cgpu_bm1397, float diff, bool force, bo
 	else
 		hashboard_usleep(s_bm1397_info, MS2US(20));
 
-	applog(LOG_ERR, "%d: %s %d - set ticket to 0x%02x/%u work %u/%.1f",
+	applog(LOG_INFO, "%d: %s %d - set ticket to 0x%02x/%u work %u/%.1f",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 		new_mask, new_diff, udiff, diff);
 
@@ -1071,8 +1071,7 @@ static void calc_bm1397_freq(struct cgpu_info *cgpu_bm1397, float frequency, int
 	else
 		snprintf(chipn, sizeof(chipn), "%d", chip);
 
-//	applog(LOG_ERR, "%d: %s %d - setting frequency to %.2fMHz (%.2f)" " (%.0f/%.0f/%.0f/%.0f)",
-	applog(LOG_ERR, "%d: %s %d - setting [%s] frequency to %.2fMHz (%.2f)" " (%.0f/%.0f/%.0f/%.0f)",
+	applog(LOG_INFO, "%d: %s %d - setting [%s] frequency to %.2fMHz (%.2f)" " (%.0f/%.0f/%.0f/%.0f)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, chipn, frequency, newf, FBDIV, REFDIV, POSTDIV1, postdiv2);
 
 	ping_freq(cgpu_bm1397, 0);
@@ -1084,7 +1083,7 @@ static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
 	unsigned int i=0;
 
-	applog(LOG_ERR,"%d: %s %d - sending chain inactive for %d chip(s)",
+	applog(LOG_INFO,"%d: %s %d - sending chain inactive for %d chip(s)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, s_bm1397_info->chips);
 
 	if (s_bm1397_info->asic_type == BM1397)
@@ -1194,16 +1193,16 @@ static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 		 * [3-2] 00 -> unused
 		 * [1-0] 01 -> Hashrate TWS
 		 */
-		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x60, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
-		s_bm1397_info->bauddiv = 0; // 3Mbt  // bauddiv is BT8D value
+		unsigned char baudrate[] = { BM1397_CHAIN_WRITE_REG, 0x09, BM1397_DEFAULT_CHIP_ADDR, BM1397_MISC_CONTROL, 0x00, 0x00, 0x61, 0x31, BM1397_CRC5_PLACEHOLDER }; // lo 1.51M
+		s_bm1397_info->bauddiv = 1; // 3Mbt  // bauddiv is BT8D value
 
-		applog(LOG_ERR, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
+		applog(LOG_INFO, "%d: %s %d - setting bauddiv : %02x %02x (ftdi/%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, baudrate[5], baudrate[6], s_bm1397_info->bauddiv + 1);
 		hashboard_send(cgpu_bm1397, baudrate, sizeof(baudrate), 8 * sizeof(baudrate) - 8, "baud");
 		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 		//TODO change baudrate here, don't work for now
-		uart_set_speed(s_uart_device, B3000000);
+		uart_set_speed(s_uart_device, B1500000);
 		hashboard_usleep(s_bm1397_info, MS2US(10));
 
 		calc_bm1397_freq(cgpu_bm1397, s_bm1397_info->frequency, -1);
@@ -1212,7 +1211,7 @@ static void hashboard_send_chain_inactive(struct cgpu_info *cgpu_bm1397)
 	}
 
 	if (s_bm1397_info->mining_state == MINER_CHIP_COUNT_OK) {
-		applog(LOG_ERR, "%d: %s %d - open cores",
+		applog(LOG_INFO, "%d: %s %d - open cores",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 		s_bm1397_info->zero_check = 0;
 		s_bm1397_info->task_hcn = 0;
@@ -1250,7 +1249,7 @@ static void hashboard_update_rates(struct cgpu_info *cgpu_bm1397)
 
 	f_average_frequency = f_average_frequency / s_bm1397_info->chips;
 	if (f_average_frequency != s_bm1397_info->frequency) {
-		applog(LOG_ERR,"%d: %s %d - frequency updated %.2fMHz -> %.2fMHz",
+		applog(LOG_INFO,"%d: %s %d - frequency updated %.2fMHz -> %.2fMHz",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, s_bm1397_info->frequency, f_average_frequency);
 		s_bm1397_info->frequency = f_average_frequency;
 		s_bm1397_info->wu_max = 0;
@@ -1296,7 +1295,7 @@ static void hashboard_update_rates(struct cgpu_info *cgpu_bm1397)
 		//  that should be an independent test
 	}
 
-	applog(LOG_ERR, "%d: %s %d - Rates: ms %.2f tu %.2f td %.2f",
+	applog(LOG_INFO, "%d: %s %d - Rates: ms %.2f tu %.2f td %.2f",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 		s_bm1397_info->fullscan_ms, s_bm1397_info->tune_up, s_bm1397_info->tune_down);
 }
@@ -1331,7 +1330,7 @@ static void bm1397_flush_buffer(struct cgpu_info *cgpu_bm1397)
 {
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
 	struct S_UART_DEVICE *s_uart_device = s_bm1397_info->uart_device;
-	applog(LOG_ERR, "Flushing %s, with fd = %d", s_uart_device->name, s_uart_device->fd);
+	applog(LOG_INFO, "Flushing %s, with fd = %d", s_uart_device->name, s_uart_device->fd);
 	uart_flush(s_uart_device);
 	
 }
@@ -1417,11 +1416,11 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 	else
 		asic_id = floor((double)(tu8_rx_buffer[4]) / ((double)0x100 / (double)(s_bm1397_info->chips)));
 
-	applog(LOG_ERR, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x by asic_id %d",
+	applog(LOG_INFO, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x by asic_id %d",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id, tu8_rx_buffer[4], asic_id);
 	if (asic_id >= (int)(s_bm1397_info->chips))
         {
-		applog(LOG_ERR, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x invalid asic_id (0..%d)",
+		applog(LOG_WARNING, "%d: %s %d - nonce %08x @ %02x tu8_rx_buffer[4] %02x invalid asic_id (0..%d)",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id,
 			tu8_rx_buffer[4], (int)(s_bm1397_info->chips)-1);
 		asic_id = (s_bm1397_info->chips - 1);
@@ -1430,7 +1429,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 
 	if (nonce == s_asic_info->u32_last_found_nonce)
 	{
-		applog(LOG_ERR, "%d: %s %d - Duplicate Nonce : %08x @ %02x [%02x %02x %02x %02x %02x %02x %02x]",
+		applog(LOG_WARNING, "%d: %s %d - Duplicate Nonce : %08x @ %02x [%02x %02x %02x %02x %02x %02x %02x]",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id,
 			tu8_rx_buffer[0], tu8_rx_buffer[1], tu8_rx_buffer[2], tu8_rx_buffer[3], tu8_rx_buffer[4], tu8_rx_buffer[5], tu8_rx_buffer[6]);
 
@@ -1452,7 +1451,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 	s_bm1397_info->prev_nonce = nonce;
 	s_asic_info->u32_last_found_nonce = nonce;
 
-	applog(LOG_ERR, "%d: %s %d - Device reported nonce: %08x @ %02x (%d)",
+	applog(LOG_INFO, "%d: %s %d - Device reported nonce: %08x @ %02x (%d)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, nonce, job_id, s_bm1397_info->tracker);
 
 	if (!opt_gekko_noboost && s_bm1397_info->vmask)
@@ -1520,7 +1519,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 						s_bm1397_info->cur_off[i]++;
 						ok = true;
 
-						applog(LOG_ERR, "%d: %s %d - Nonce Recovered : %08x @ job[%02x]->fix[%02x] len %u prelen %u",
+						applog(LOG_INFO, "%d: %s %d - Nonce Recovered : %08x @ job[%02x]->fix[%02x] len %u prelen %u",
 							cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 							nonce, job_id, w_job_id, (uint32_t)(DATA_NONCE(item)->sizet_len),
 							(uint32_t)(DATA_NONCE(item)->sizet_previous_len));
@@ -1531,7 +1530,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 
 		if (!ok)
 		{
-			applog(LOG_ERR, "%d: %s %d - Nonce Dumped : %08x @ job[%02x] cur[%02x] diff %u",
+			applog(LOG_WARNING, "%d: %s %d - Nonce Dumped : %08x @ job[%02x] cur[%02x] diff %u",
 				cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 				nonce, job_id, s_bm1397_info->job_id, s_bm1397_info->difficulty);
 
@@ -1594,7 +1593,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 						s_bm1397_info->ticket_ok = true;
 						s_bm1397_info->ticket_failures = 0;
 
-						applog(LOG_ERR, "%d: %s %d - ticket value confirmed 0x%02x/%u after %"PRId64" nonces",
+						applog(LOG_INFO, "%d: %s %d - ticket value confirmed 0x%02x/%u after %"PRId64" nonces",
 							cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 							s_bm1397_info->ticket_mask, s_bm1397_info->difficulty, s_bm1397_info->ticket_nonces);
 						break;
@@ -1615,7 +1614,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 						break;
 					}
 
-					applog(LOG_ERR, "%d: %s %d - ticket %u failure no low < %.1f after %d - retry %d",
+					applog(LOG_WARNING, "%d: %s %d - ticket %u failure no low < %.1f after %d - retry %d",
 						cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 						s_ticket_info_bm1397[i].u32_work_diff, s_ticket_info_bm1397[i].d_low_limit, s_bm1397_info->ticket_work, s_bm1397_info->ticket_failures+1);
 
@@ -1647,7 +1646,7 @@ static void hashboard_bm1397_nonce(struct cgpu_info *cgpu_bm1397, K_ITEM *item)
 
 		if (midnum > 0)
 		{
-			applog(LOG_ERR, "%d: %s %d - AsicBoost nonce found : midstate %d",
+			applog(LOG_INFO, "%d: %s %d - AsicBoost nonce found : midstate %d",
 				cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, midnum);
 		}
 
@@ -1791,7 +1790,7 @@ static void *bm1397_mining_thread(void *object)
 
 	ret_nice = nice(-15);
 
-	applog(LOG_ERR, "%d: %s %d - work thread niceness (%d)",
+	applog(LOG_INFO, "%d: %s %d - work thread niceness (%d)",
 		cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, ret_nice);
 
 	sleep_us = 100;
@@ -1884,7 +1883,7 @@ static void *bm1397_mining_thread(void *object)
 				s_bm1397_info->frequency_computed = frequency_computed;
 				cgtime(&s_bm1397_info->last_computed_increase);
 
-				applog(LOG_ERR, "%d: %s %d - new comp=%.2f (gs=%.2f)",
+				applog(LOG_INFO, "%d: %s %d - new comp=%.2f (gs=%.2f)",
 					cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, frequency_computed,
 					((double)hashrate_gs)/1.0e6);
 			}
@@ -1915,7 +1914,7 @@ static void *bm1397_mining_thread(void *object)
 						&&  ms_tdiff(&now, &s_bm1397_info->s_tv_last_nonce) > s_bm1397_info->nonce_limit)
 						{
 							plateau_type = PT_NONONCE;
-							applog(LOG_ERR, "%d: %s %d - plateau_type PT_NONONCE [%u] %d > %.2f (lock=%d)",
+							applog(LOG_INFO, "%d: %s %d - plateau_type PT_NONONCE [%u] %d > %.2f (lock=%d)",
 								cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, i,
 								ms_tdiff(&now, &s_bm1397_info->s_tv_last_nonce), s_bm1397_info->nonce_limit, s_bm1397_info->lock_freq);
 							if (s_bm1397_info->lock_freq)
@@ -1928,7 +1927,7 @@ static void *bm1397_mining_thread(void *object)
 					&&  s_asic_info->u32_frequency_attempt > 3)
 					{
 						plateau_type = PT_FREQSET;
-						applog(LOG_ERR, "%d: %s %d - plateau_type PT_FREQSET [%u] %u > 3",
+						applog(LOG_INFO, "%d: %s %d - plateau_type PT_FREQSET [%u] %u > 3",
 							cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, i, s_asic_info->u32_frequency_attempt);
 					}
 
@@ -1950,7 +1949,7 @@ static void *bm1397_mining_thread(void *object)
 							sprintf(freq_chip_buf, "[%d:%.2f]", j, asjc->f_frequency);
 							strcat(freq_buf, freq_chip_buf);
 						}
-						applog(LOG_ERR,"%d: %s %d - %s",
+						applog(LOG_INFO,"%d: %s %d - %s",
 							cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id, freq_buf);
 
 						if (s_bm1397_info->plateau_reset < 3)
@@ -2889,7 +2888,7 @@ static bool hashboard_init(struct thr_info *thr)
 			applog(LOG_ERR, "%d: %s %d - read thread create failed", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			return false;
 		} else {
-			applog(LOG_ERR, "%d: %s %d - read thread created", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
+			applog(LOG_INFO, "%d: %s %d - read thread created", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 		}
 		pthread_detach(s_bm1397_info->listening_thrd.pth);
 
@@ -2899,7 +2898,7 @@ static bool hashboard_init(struct thr_info *thr)
 			applog(LOG_ERR, "%d: %s %d - write thread create failed", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			return false;
 		} else {
-			applog(LOG_ERR, "%d: %s %d - write thread created", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
+			applog(LOG_INFO, "%d: %s %d - write thread created", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 		}
 
 		pthread_detach(s_bm1397_info->work_thrd.pth);
@@ -3009,7 +3008,7 @@ static int64_t hashboard_scanwork(struct thr_info *thr)
 			return 0;
 			break;
 		case MINER_OPEN_CORE_OK:
-			applog(LOG_ERR, "%d: %s %d - start work", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
+			applog(LOG_INFO, "%d: %s %d - start work", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 			if (s_bm1397_info->asic_type == BM1397)
 				hashboard_calc_nb2c(cgpu_bm1397);
 			cgtime(&s_bm1397_info->start_time);
@@ -3201,7 +3200,7 @@ static bool hashboard_prepare(struct thr_info *thr)
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 			s_bm1397_info->uart_device->name, cgpu_bm1397->unique_id);
 	} else {
-		applog(LOG_ERR, "%d: %s %d - init_count %d",
+		applog(LOG_INFO, "%d: %s %d - init_count %d",
 			cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id,
 			s_bm1397_info->init_count);
 	}
@@ -3225,7 +3224,7 @@ static void hashboard_shutdown(struct thr_info *thr)
 {
 	struct cgpu_info *cgpu_bm1397 = thr->cgpu;
 	struct S_BM1397_INFO *s_bm1397_info = cgpu_bm1397->device_data;
-	applog(LOG_ERR, "%d: %s %d - shutting down", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
+	applog(LOG_INFO, "%d: %s %d - shutting down", cgpu_bm1397->cgminer_id, cgpu_bm1397->drv->name, cgpu_bm1397->device_id);
 
 	calc_bm1397_freq(cgpu_bm1397, 0, -1);  //Set alls chips at 0 frequency
 	hashboard_toggle_reset(cgpu_bm1397); // Toogle nRST pin (useless to set frequency to 0 then ?)
