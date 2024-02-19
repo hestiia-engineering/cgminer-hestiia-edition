@@ -3386,7 +3386,7 @@ static struct api_data *hasboard_api_stats(struct cgpu_info *cgpu_bm1397)
 	root = api_add_int(root, "Dups", &s_bm1397_info->dupsall, true);
 	root = api_add_int(root, "DupsReset", &s_bm1397_info->dupsreset, true);
 	root = api_add_uint(root, "Chips", &s_bm1397_info->chips, false);
-	root = api_add_bool(root, "FreqLocked", &s_bm1397_info->lock_freq, false);
+	root = api_add_bool(root, "FreqLocked", &s_bm1397_info->lock_freq, true);
 	if (s_bm1397_info->asic_type == BM1397)
 		root = api_add_int(root, "USBProp", &s_bm1397_info->usb_prop, false);
 	mutex_lock(&s_bm1397_info->ghlock);

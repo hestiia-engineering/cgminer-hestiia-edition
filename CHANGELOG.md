@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.1](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.3.0...v5.3.1) (2024-02-01)
+
+
+### Bug Fixes
+
+* set lockfreq by default ([71bcc50](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/71bcc503a811606883c1bdfa2723cabd537555c6))
+
 ## [5.3.0](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.2.1...v5.3.0) (2023-12-12)
 
 

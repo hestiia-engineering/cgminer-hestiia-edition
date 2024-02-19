@@ -23,7 +23,7 @@ jobs:
       - uses: dsaltares/fetch-gh-release-asset@master
         with:
           repo: 'hestiia-engineering/yocto-cooker-myeko'
-          file: 'poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.12.sh '
+          file: 'poky-glibc-x86_64-myeko-image-dev-cortexa8hf-neon-myeko-board-toolchain-4.0.14.sh '
           target: 'sdk.sh'
           token: ${{ secrets.GIT_TOKEN }}
       - name: Extract Yocto SDK
