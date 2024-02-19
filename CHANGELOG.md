@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.2](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.3.1...v5.3.2) (2024-02-19)
+
+
+### Bug Fixes
+
+* ci update sdk ([4cb82ef](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/4cb82ef014ec751d758386de2e28f0abec2c83d2))
+
 ## [5.3.1](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.3.0...v5.3.1) (2024-02-01)
 
 
