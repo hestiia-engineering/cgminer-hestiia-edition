@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.3](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.3.2...v5.3.3) (2024-04-17)
+
+
+### Bug Fixes
+
+* no more SegFault on benchmark mode ([540fa1e](https://github.com/hestiia-engineering/cgminer-hestiia-edition/commit/540fa1e95b48054ee2ba2dca63fdbd8981d73f80))
+
 ## [5.3.2](https://github.com/hestiia-engineering/cgminer-hestiia-edition/compare/v5.3.1...v5.3.2) (2024-02-19)
 
 
