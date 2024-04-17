@@ -56,7 +56,7 @@
         {
             "label": "Remote ARM debug setup",
             "type": "shell",
-            "dependsOn": ["Send to target" ],
+            //"dependsOn": ["Send to target" ],
             "command": "./scripts/remote-debug.sh",
             "args": [ "cgminer-hestiia-edition", "cgminer" ],
             "options": {
