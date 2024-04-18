@@ -4576,12 +4576,14 @@ static bool test_work_current(struct work *work)
 	char hexstr[68];
 	bool ret = true;
 	unsigned char *bin_height = &pool->coinbase[43];
-	uint8_t cb_height_sz = bin_height[-1];
+	
 	uint32_t height = 0;
 
 	if (work->mandatory)
 		return ret;
 
+
+	uint8_t cb_height_sz = bin_height[-1];
 	swap256(bedata, work->data + 4);
 	__bin2hex(hexstr, bedata, 32);
 

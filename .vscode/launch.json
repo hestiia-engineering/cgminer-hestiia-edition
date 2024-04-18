@@ -5,17 +5,34 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Lancer",
+            "type": "gdb",
+            "request": "attach",
+            "name": "Attach to gdbserver",
+            "executable": "${workspaceFolder}/build_yocto/cgminer",
+            "target": "myeko-5111:11777",
+            "remote": true,
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText",
+            "gdbpath": "/home/pixma/yocto/sysroots/x86_64-pokysdk-linux/usr/bin/arm-poky-linux-gnueabi/arm-poky-linux-gnueabi-gdb",
+            "pathSubstitutions": {
+                "/home/pixma/workspace/cgminer-hestiia-edition/": "${workspaceFolder}/"
+            },
+            "showDevDebugOutput":true,
+            "autorun": [
+                "set sysroot /yocto/sysroots/cortexa8hf-neon-poky-linux-gnueabi",
+            ],
+            "printCalls": true
+        },
+        {
+            "name": "(gdb) Local_debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build_arm/cgminer",
-            "miDebuggerServerAddress": "beaglelight:11777",
+            "program": "${workspaceFolder}/build_debug_x86_64/cgminer",
             "args": ["--api-listen", "--api-allow", "W:0/0", "-o", "stratum+tcp://stratum.braiins.com:3333", "-u", "olocrom.worker1", "-p", "x"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": true,
-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -23,6 +40,76 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 },
+                {
+                    "description": "Définir la version désassemblage sur Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Local debug : benchmark",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_debug_x86_64/cgminer",
+            "args": ["--api-listen", "--api-allow", "W:0/0", "--benchmark"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Définir la version désassemblage sur Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Yocto Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_yocto/cgminer",
+            "miDebuggerServerAddress": "myeko-5111:11777",
+            "args": [""],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "targetArchitecture": "arm",
+            "additionalSOLibSearchPath": "${workspaceFolder}",
+            "sourceFileMap":{
+                "../": "${workspaceFolder}/"
+            },
+            "miDebuggerPath": "/home/pixma/yocto/sysroots/x86_64-pokysdk-linux/usr/bin/arm-poky-linux-gnueabi/arm-poky-linux-gnueabi-gdb",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Activer l'impression en mode Pretty pour gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Définir la version désassemblage sur Intel",
+                    "text": "-gdb-set disassembly-flavor arm",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Définir le sysroot",
+                    "text": "set sysroot /home/pixma/debugfs/",
+                    "ignoreFailures": true
+                },
+                // {
+                //     "description": "substitute-path",
+                //     "text": "set substitute-path /usr/src/debug debugfs/usr/src/debug",
+                //     "ignoreFailures": true
+                // },
             ],
             //"preLaunchTask": "Remote ARM debug setup"
         },
