@@ -226,6 +226,9 @@ int opt_gekko_start_freq = 100;
 int opt_gekko_step_delay = 15;
 bool opt_gekko_mine2 = false; // gekko code ignores it
 int opt_gekko_tune2 = 0;
+struct bm1397_uart opt_bm1397_uarts = { 0 };
+struct bm1397_gpiochip opt_bm1397_gpiochip = { 0 };
+struct bm1397_reset opt_bm1397_reset = { 0 };
 #endif
 char *opt_bab_options = NULL;
 static char *opt_set_null;
@@ -1267,6 +1270,15 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--gekko-tune2",
 			set_int_0_to_9999, opt_show_intval, &opt_gekko_tune2,
 			"Tune up mine2 mins 30-9999, default 0=never"),
+	OPT_WITH_ARG("--bm1397-uart",
+		     add_uart, NULL, &opt_bm1397_uarts,
+		     "Set bm1397 BM1397 UART path"),
+	OPT_WITH_ARG("--bm1397-gpiochip",
+		     add_gpiochip, NULL, &opt_bm1397_gpiochip,
+		     "Set bm1397 BM1397 GPIO chip"),
+	OPT_WITH_ARG("--bm1397-reset",
+		     add_reset, NULL, &opt_bm1397_reset,
+		     "Set bm1397 BM1397 reset GPIO"),
 #endif
 #ifdef HAVE_LIBCURL
 	OPT_WITH_ARG("--btc-address",
@@ -1438,6 +1450,28 @@ static struct opt_table opt_config_table[] = {
 			"Display extra work time debug information"),
 	OPT_ENDTABLE
 };
+
+int add_uart(char *arg, struct bm1397_uart *opt)
+{
+	opt->paths = realloc(opt->paths, (opt->n + 1) * sizeof(*opt->paths));
+    opt->paths[opt->n++] = arg;
+	return 0;
+}
+
+int add_gpiochip(char *arg, struct bm1397_gpiochip *opt)
+{
+	opt->paths = realloc(opt->paths, (opt->n + 1) * sizeof(*opt->paths));
+	opt->paths[opt->n++] = arg;
+	return 0;
+}
+
+int add_reset(char *arg, struct bm1397_reset *opt)
+{
+	int pin = atoi(arg);
+	opt->resets = realloc(opt->resets, (opt->n + 1) * sizeof(*opt->resets));
+	opt->resets[opt->n++] = pin;
+	return 0;
+}
 
 static char *load_config(const char *arg, void __maybe_unused *unused);
 

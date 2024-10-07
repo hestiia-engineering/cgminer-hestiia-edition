@@ -307,6 +307,27 @@ struct cgpu_info;
 
 extern void blank_get_statline_before(char *buf, size_t bufsiz, struct cgpu_info __maybe_unused *cgpu);
 
+struct bm1397_uart {
+	char **paths;
+	size_t n;
+};
+
+int add_uart(char *arg, struct bm1397_uart *opt);
+
+struct bm1397_gpiochip {
+	char **paths;
+	size_t n;
+};
+
+int add_gpiochip(char *arg, struct bm1397_gpiochip *opt);
+
+struct bm1397_reset {
+	int *resets;
+	size_t n;
+};
+
+int add_reset(char *arg, struct bm1397_reset *opt);
+
 struct api_data;
 struct thr_info;
 struct work;
@@ -1021,6 +1042,9 @@ extern int opt_gekko_gsh_vcore;
 extern int opt_gekko_start_freq;
 extern int opt_gekko_step_delay;
 extern int opt_gekko_tune2;
+extern struct bm1397_uart opt_bm1397_uarts;
+extern struct bm1397_gpiochip opt_bm1397_gpiochip;
+extern struct bm1397_reset opt_bm1397_reset;
 #endif
 #ifdef USE_USBUTILS
 extern char *opt_usb_select;
@@ -1557,5 +1581,6 @@ extern struct api_data *api_add_avg(struct api_data *root, char *name, float *da
 extern void dupalloc(struct cgpu_info *cgpu, int timelimit);
 extern void dupcounters(struct cgpu_info *cgpu, uint64_t *checked, uint64_t *dups);
 extern bool isdupnonce(struct cgpu_info *cgpu, struct work *work, uint32_t nonce);
+
 
 #endif /* __MINER_H__ */

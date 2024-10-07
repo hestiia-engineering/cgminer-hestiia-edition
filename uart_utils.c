@@ -6,7 +6,7 @@
 #define SRV_TIMEOUT 2
 
 #define MAX_UART_DEVICES 3
-#define UART_DEVICE_ENABLED 3
+#define UART_DEVICE_ENABLED 1
 
 
 //config-pin p9.24 uart && config-pin p9.26 uart && config-pin p9.21 uart && config-pin p9.22 uart && config-pin p9.13 uart && config-pin p9.11 uart
@@ -26,7 +26,7 @@ const char *gpio_chip[MAX_UART_DEVICES] = {
 const int gpio_line_offset[MAX_UART_DEVICES] = {
 	17,  //P9.23 //UART1
 	19,  //P9.27 //UART2
-	28,  //P9.12 //UART4	
+	28,  //P9.12 //UART4
 };
 
 int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, char *uart_device_name, uint32_t speed)
@@ -36,8 +36,8 @@ int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, 
 	s_device->speed = speed;
 
 	int fd;
-	if ((fd = open(s_device->name, O_RDWR | O_NOCTTY | O_NDELAY)) < 0)
-	{
+
+	if ((fd = open(s_device->name, O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
 		applog(LOG_ERR, "BM1397: %s() failed to open device [%s]: %s",
 			   __func__, s_device->name, strerror(errno));
 	}
@@ -206,20 +206,31 @@ void __uart_detect(struct cgpu_info *(*device_detect)(const char *uart_device_na
 	ssize_t count, i;
 	struct cgpu_info *cgpu;
 
-	for (i = 0; i < UART_DEVICE_ENABLED; i++)
+	applog(LOG_DEBUG, "BM1397: %s() Detecting BM1397 devices", __func__);
+	// check all opt to be sure we have the same number of each
+	if (opt_bm1397_uarts.n != opt_bm1397_gpiochip.n || opt_bm1397_uarts.n != opt_bm1397_reset.n)
 	{
+		applog(LOG_ERR, "BM1397: %s() number of UARTs, GPIOs and resets do not match", __func__);
+		return;
+	}
+	/// debug print content of opt_bm1397_uarts, opt_bm1397_gpiochip, opt_bm1397_reset
+	for (i = 0; i < opt_bm1397_uarts.n; i++)
+	{
+		applog(LOG_DEBUG, "BM1397: %s() UART: %s, GPIO: %s, Reset: %d", __func__, opt_bm1397_uarts.paths[i], opt_bm1397_gpiochip.paths[i], opt_bm1397_reset.resets[i]);
+	}
+
+	for (i = 0; i < opt_bm1397_uarts.n; i++) {
 		bool new_dev = false;
-		cgpu = device_detect(uart_device_names[i], gpio_chip[i], gpio_line_offset[i], (i + 1));
-		if (!cgpu)
-		{
+
+		cgpu = device_detect(opt_bm1397_uarts.paths[i], opt_bm1397_gpiochip.paths[i], opt_bm1397_reset.resets[i], (i + 1));
+
+		if (!cgpu) {
 			// TODO deals with errors and mutex if needed
 			asm volatile("nop");
 			// cgminer_usb_unlock(drv, list[i]);
-		}
-		else
-		{
+		} else {
 			new_dev = true;
-			applog(LOG_DEBUG, "New BM1397: %d device on uart %s", i, uart_device_names[i]);
+			applog(LOG_DEBUG, "New BM1397: %ld device on uart %s", i, uart_device_names[i]);
 		}
 		if (single && new_dev)
 			break;
@@ -232,17 +243,18 @@ void uart_release(struct S_UART_DEVICE *s_device)
 }
 
 
-void uart_set_speed(struct S_UART_DEVICE *s_device,uint32_t speed ) {
+void uart_set_speed(struct S_UART_DEVICE *s_device, uint32_t speed)
+{
 
-	char* uart_device_name = s_device->name;
+	char *uart_device_name = s_device->name;
+
 	uart_release(s_device);
 	uart_init(s_device, uart_device_name, speed);
 
 	applog(LOG_DEBUG, "BM1397: %s() device [%s] changing baudrate to %d",
 		   __func__, s_device->name, speed);
 	// check if fd is not initialized
-	if (s_device->fd == -1)
-	{
+	if (s_device->fd == -1) {
 		applog(LOG_ERR, "BM1397: %s() device [%s] is not initialized",
 			   __func__, s_device->name);
 	}
