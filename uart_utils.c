@@ -5,28 +5,25 @@
 
 #define SRV_TIMEOUT 2
 
-#define MAX_UART_DEVICES 3
-#define UART_DEVICE_ENABLED 3
+#define MAX_UART_DEVICES 2
+#define UART_DEVICE_ENABLED 2
 
 
 //config-pin p9.24 uart && config-pin p9.26 uart && config-pin p9.21 uart && config-pin p9.22 uart && config-pin p9.13 uart && config-pin p9.11 uart
 const char *uart_device_names[MAX_UART_DEVICES] = {
-	"/dev/ttyS1",  //P9.26 P9.24  //UART1
-	"/dev/ttyS2",  //P9.22 P9.21  //UART2
 	"/dev/ttyS4",  //P9.11 P9.13  //UART4
+	"/dev/ttyS1",  //P9.26 P9.24  //UART1
 };
 
 const char *gpio_chip[MAX_UART_DEVICES] = {
-	"gpiochip0",
-	"gpiochip2",
-	"gpiochip0",
+	"gpio/beaglebone-gpio0",
+	"gpio/beaglebone-gpio0",
 };
 
 // For nrst
 const int gpio_line_offset[MAX_UART_DEVICES] = {
+	28,  //P9.12 //UART4
 	17,  //P9.23 //UART1
-	19,  //P9.27 //UART2
-	28,  //P9.12 //UART4	
 };
 
 int8_t __attribute__((optimize("O2")))uart_init(struct S_UART_DEVICE *s_device, char *uart_device_name, uint32_t speed)
